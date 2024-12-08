@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-	import { Point } from "$lib/Point";
+	import { ComplexNumber } from "$lib/ComplexNumber";
 
 	// Canvas 関連の変数
 	let canvas: HTMLCanvasElement;
@@ -16,8 +16,9 @@
 	const MIN_SCALE = 0.3;
 
 	// Cage 関連
-	let cage: Point[] = [];
-	let star: Point[] = [];
+	let cage: ComplexNumber[] = [];
+	let cageOrg: ComplexNumber[] = [];
+	let star: ComplexNumber[] = [];
 
 	// 画面モード
 	let mode = "edit";
@@ -27,14 +28,15 @@
 	onMount(() => {
 		ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 		// init cage
-		let p = new Point(-200, -200); // 始点と終点を同一のオブジェクトにする
 		cage = [
-			p,
-			new Point(200, -200),
-			new Point(200, 200),
-			new Point(-200, 200),
-			p,
+			new ComplexNumber(-200, -200),
+			new ComplexNumber(200, -200),
+			new ComplexNumber(200, 200),
+			new ComplexNumber(-200, 200),
 		];
+		cage.forEach((p) => {
+			cageOrg = [...cageOrg, new ComplexNumber(p.real, p.imaginary)];
+		});
 		// init obj in cage
 		const spikes = 5;
 		const outerRadius = 100;
@@ -46,7 +48,7 @@
 			const radius = i % 2 === 0 ? outerRadius : innerRadius;
 			const x = cx + Math.cos(angle) * radius;
 			const y = cy - Math.sin(angle) * radius; // CanvasのY軸は下方向が正
-			star = [...star, new Point(x, y)];
+			star = [...star, new ComplexNumber(x, y)];
 		}
 		star = [...star, star[0]];
 		// init canvas
@@ -77,8 +79,8 @@
 		} else if (mode == "edit") {
 			if (pActive != -1) {
 				mousePointDiff = {
-					x: posInCanvas.x - cage[pActive].x,
-					y: posInCanvas.y - cage[pActive].y,
+					x: posInCanvas.x - cage[pActive].real,
+					y: posInCanvas.y - cage[pActive].imaginary,
 				};
 			}
 		}
@@ -97,8 +99,8 @@
 		} else if (mode == "edit") {
 			if (isDragging) {
 				if (pActive != -1) {
-					cage[pActive].x = posInCanvas.x - mousePointDiff.x;
-					cage[pActive].y = posInCanvas.y - mousePointDiff.y;
+					cage[pActive].real = posInCanvas.x - mousePointDiff.x;
+					cage[pActive].imaginary = posInCanvas.y - mousePointDiff.y;
 					// cage = [...cage];
 				}
 			} else {
@@ -143,6 +145,12 @@
 		if (!ctx) {
 			return;
 		}
+		let newStar: ComplexNumber[] = [];
+		star.forEach((p) => {
+			const newP = U(p);
+			newStar = [...newStar, newP];
+		});
+		star = newStar;
 		ctx.save(); // 現在の状態を保存
 		ctx.clearRect(0, 0, canvas.width, canvas.height); // canvasのクリア
 		ctx.setTransform(1, 0, 0, 1, 0, 0); // 変換行列を（設定されていれば）リセット
@@ -173,18 +181,16 @@
 		offset = { x: -centerX, y: centerY };
 		lastOffset = { ...offset };
 	}
-	function draw(points: Point[], active?: number) {
+	function draw(points: ComplexNumber[], active?: number) {
 		// draw cage
-		points.forEach((end, i) => {
-			if (i > 0) {
-				const start = points[i - 1];
-				ctx.moveTo(end.x, end.y);
-				ctx.lineTo(start.x, start.y);
-			}
+		points.forEach((start, i) => {
+			const end = points[(i + 1) % points.length];
+			ctx.moveTo(start.real, start.imaginary);
+			ctx.lineTo(end.real, end.imaginary);
 			if (i == active) {
-				drawPoint(end.x, end.y, 10);
+				drawPoint(start.real, start.imaginary, 10);
 			} else {
-				drawPoint(end.x, end.y);
+				drawPoint(start.real, start.imaginary);
 			}
 		});
 	}
@@ -200,18 +206,39 @@
 		ctx.fillRect(x - r / 2, y - r / 2, r, r);
 	}
 
-	function getNearestPointId(points: Point[], threshold: number) {
+	function getNearestPointId(points: ComplexNumber[], threshold: number) {
 		let result = -1;
 		let distMin = Infinity;
 		points.forEach((p, i) => {
 			const dist = Math.sqrt(
-				(p.x - posInCanvas.x) * (p.x - posInCanvas.x) +
-					(p.y - posInCanvas.y) * (p.y - posInCanvas.y),
+				(p.real - posInCanvas.x) * (p.real - posInCanvas.x) +
+					(p.imaginary - posInCanvas.y) *
+						(p.imaginary - posInCanvas.y),
 			);
 			if (dist < distMin && dist < threshold) {
 				result = i;
 				distMin = dist;
 			}
+		});
+		return result;
+	}
+	function U(z: ComplexNumber) {
+		let result = new ComplexNumber(0, 0);
+		cageOrg.forEach((p, j) => {
+			const iNext = (j + 1) % cage.length;
+			const iPrev = j == 0 ? cageOrg.length - 1 : j - 1;
+			const aj = p.sub(cageOrg[iPrev]);
+			const bj = p.sub(z);
+			const ajNext = cageOrg[iNext].sub(p);
+			const bjNext = cageOrg[iNext].sub(z);
+			const bjPrev = cageOrg[iPrev].sub(z);
+			const cj = bjNext
+				.div(ajNext)
+				.mul(bjNext.div(bj).log())
+				.sub(bjPrev.div(aj).mul(bj.div(bjPrev).log()))
+				.div(new ComplexNumber(0, 2 * Math.PI));
+			const fj = cage[j];
+			result = result.add(cj.mul(fj));
 		});
 		return result;
 	}
