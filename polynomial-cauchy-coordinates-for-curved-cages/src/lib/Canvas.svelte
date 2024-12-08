@@ -19,6 +19,7 @@
 	let cage: ComplexNumber[] = [];
 	let cageOrg: ComplexNumber[] = [];
 	let star: ComplexNumber[] = [];
+	let coeffs: ComplexNumber[][] = []; //コーシー変換係数
 
 	// 画面モード
 	let mode = "edit";
@@ -50,7 +51,25 @@
 			const y = cy - Math.sin(angle) * radius; // CanvasのY軸は下方向が正
 			star = [...star, new ComplexNumber(x, y)];
 		}
-		star = [...star, star[0]];
+		// init C（コーシー変換係数）
+		cage.forEach((p, i) => {
+			coeffs = [...coeffs, []];
+			star.forEach((z) => {
+				const iNext = (i + 1) % cage.length;
+				const iPrev = i == 0 ? cage.length - 1 : i - 1;
+				const a = p.sub(cage[iPrev]);
+				const b = p.sub(z);
+				const aNext = cage[iNext].sub(p);
+				const bNext = cage[iNext].sub(z);
+				const bPrev = cage[iPrev].sub(z);
+				const c = bNext
+					.div(aNext)
+					.mul(bNext.div(b).log())
+					.sub(bPrev.div(a).mul(b.div(bPrev).log()))
+					.div(new ComplexNumber(0, 2 * Math.PI));
+				coeffs[i] = [...coeffs[i], c];
+			});
+		});
 		// init canvas
 		handleResize();
 		resetCanvas();
@@ -92,16 +111,23 @@
 			y: -((e.offsetY - canvas.height / 2 - offset.y) / scale),
 		};
 		if (mode == "view") {
+			// Viewモードでは画面をパンする
 			if (isDragging) {
 				offset.x = lastOffset.x + (e.clientX - dragStart.x);
 				offset.y = lastOffset.y + (e.clientY - dragStart.y);
 			}
 		} else if (mode == "edit") {
+			// Editモードではケージを編集する
 			if (isDragging) {
 				if (pActive != -1) {
 					cage[pActive].real = posInCanvas.x - mousePointDiff.x;
 					cage[pActive].imaginary = posInCanvas.y - mousePointDiff.y;
-					// cage = [...cage];
+					let newStar: ComplexNumber[] = [];
+					star.forEach((_, i) => {
+						const newP = cauchyTransform(i);
+						newStar = [...newStar, newP];
+					});
+					star = newStar;
 				}
 			} else {
 				pActive = getNearestPointId(cage, 50);
@@ -145,12 +171,6 @@
 		if (!ctx) {
 			return;
 		}
-		let newStar: ComplexNumber[] = [];
-		star.forEach((p) => {
-			const newP = U(p);
-			newStar = [...newStar, newP];
-		});
-		star = newStar;
 		ctx.save(); // 現在の状態を保存
 		ctx.clearRect(0, 0, canvas.width, canvas.height); // canvasのクリア
 		ctx.setTransform(1, 0, 0, 1, 0, 0); // 変換行列を（設定されていれば）リセット
@@ -222,23 +242,14 @@
 		});
 		return result;
 	}
-	function U(z: ComplexNumber) {
+
+	// コーシー変換
+	function cauchyTransform(i: number) {
 		let result = new ComplexNumber(0, 0);
-		cageOrg.forEach((p, j) => {
-			const iNext = (j + 1) % cage.length;
-			const iPrev = j == 0 ? cageOrg.length - 1 : j - 1;
-			const aj = p.sub(cageOrg[iPrev]);
-			const bj = p.sub(z);
-			const ajNext = cageOrg[iNext].sub(p);
-			const bjNext = cageOrg[iNext].sub(z);
-			const bjPrev = cageOrg[iPrev].sub(z);
-			const cj = bjNext
-				.div(ajNext)
-				.mul(bjNext.div(bj).log())
-				.sub(bjPrev.div(aj).mul(bj.div(bjPrev).log()))
-				.div(new ComplexNumber(0, 2 * Math.PI));
-			const fj = cage[j];
-			result = result.add(cj.mul(fj));
+		cageOrg.forEach((_, j) => {
+			const c = coeffs[j][i];
+			const f = cage[j];
+			result = result.add(c.mul(f));
 		});
 		return result;
 	}
