@@ -11,7 +11,6 @@
 	let offset = { x: 0, y: 0 }; // 現在のオフセット
 	let lastOffset = { x: 0, y: 0 }; // ドラッグ終了時のオフセット
 	let posInCanvas = { x: 0, y: 0 }; // オフセットとスケールを考慮したcanvas内マウス位置
-	let showHandle = true; // ベジェハンドルの描画ON/OFF
 	const MAX_SCALE = 5;
 	const MIN_SCALE = 0.3;
 
@@ -83,10 +82,10 @@
 	// 再描画。定義内の変数が更新されたら呼ばれる
 	$: {
 		if (canvas && ctx && offset && scale) {
-			updateCanvas(showHandle);
+			updateCanvas();
 		}
 	}
-	function updateCanvas(showHandle: boolean) {
+	function updateCanvas() {
 		ctx.save(); // 現在の状態を保存
 		ctx.clearRect(0, 0, canvas.width, canvas.height); // canvasのクリア
 		ctx.setTransform(1, 0, 0, 1, 0, 0); // 変換行列を（設定されていれば）リセット
