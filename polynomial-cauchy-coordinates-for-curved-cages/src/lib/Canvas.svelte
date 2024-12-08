@@ -20,7 +20,7 @@
 	let star: Point[] = [];
 
 	// 画面モード
-	let mode = "view";
+	let mode = "edit";
 	let mousePointDiff = { x: 0, y: 0 };
 	let pActive = -1;
 
@@ -221,12 +221,6 @@
 		{ value: "view", label: "View Mode" },
 		{ value: "edit", label: "Edit Mode" },
 	];
-
-	// 選択変更時のイベントハンドラ (オプション)
-	function handleChange(event: Event) {
-		const target = event.target as HTMLInputElement;
-		console.log("選択された値:", target.value);
-	}
 </script>
 
 <svelte:window on:keydown={handleKeydown} on:resize={handleResize} />
@@ -243,12 +237,7 @@
 	<div class="overlay-text-left">
 		{#each options as { value, label }}
 			<label>
-				<input
-					type="radio"
-					bind:group={mode}
-					{value}
-					on:change={handleChange}
-				/>
+				<input type="radio" bind:group={mode} {value} />
 				{label}
 			</label>
 			<br />
