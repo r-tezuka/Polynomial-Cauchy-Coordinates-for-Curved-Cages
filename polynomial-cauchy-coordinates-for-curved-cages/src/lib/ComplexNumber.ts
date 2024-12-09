@@ -22,17 +22,37 @@ export class ComplexNumber {
         );
     }
 
-    mul(other: ComplexNumber): ComplexNumber {
-        const realPart = this.real * other.real - this.imaginary * other.imaginary;
-        const imaginaryPart = this.real * other.imaginary + this.imaginary * other.real;
-        return new ComplexNumber(realPart, imaginaryPart);
+    mul(other: ComplexNumber | number): ComplexNumber {
+        if (other instanceof ComplexNumber) {
+            const real = this.real * other.real - this.imaginary * other.imaginary;
+            const imaginary = this.real * other.imaginary + this.imaginary * other.real;
+            return new ComplexNumber(real, imaginary);
+        }
+        else {
+            return new ComplexNumber(this.real * other, this.imaginary * other);
+        }
     }
 
     div(other: ComplexNumber): ComplexNumber {
         const denominator = other.real * other.real + other.imaginary * other.imaginary;
-        const realPart = (this.real * other.real + this.imaginary * other.imaginary) / denominator;
-        const imaginaryPart = (this.imaginary * other.real - this.real * other.imaginary) / denominator;
-        return new ComplexNumber(realPart, imaginaryPart);
+        const real = (this.real * other.real + this.imaginary * other.imaginary) / denominator;
+        const imaginary = (this.imaginary * other.real - this.real * other.imaginary) / denominator;
+        return new ComplexNumber(real, imaginary);
+    }
+
+    pow(n: number): ComplexNumber {
+        // 極形式を使用して計算
+        const modulus = this.modulus(); // 絶対値
+        const argument = this.argument(); // 偏角
+
+        const newModulus = Math.pow(modulus, n); // 絶対値を N 乗
+        const newArgument = argument * n; // 偏角を N 倍
+
+        // 極形式をデカルト形式に変換
+        const real = newModulus * Math.cos(newArgument);
+        const imaginary = newModulus * Math.sin(newArgument);
+
+        return new ComplexNumber(real, imaginary);
     }
 
     // 絶対値

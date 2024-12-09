@@ -1,13 +1,17 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { ComplexNumber } from "$lib/ComplexNumber";
+	import {
+		BezierSpline,
+		getCoeffs,
+		cauchyCoordinates,
+	} from "$lib/CauchyCoordinates";
 
 	// Canvas 関連の変数
 	let canvas: HTMLCanvasElement;
 	let ctx: CanvasRenderingContext2D;
 	let scale: number = 1;
 	let isDragging = false; // ドラッグ中かどうか
-	let contentBbox = { min: { x: 0, y: 0 }, max: { x: 0, y: 0 } };
 	let dragStart = { x: 0, y: 0 }; // ドラッグ開始位置
 	let offset = { x: 0, y: 0 }; // 現在のオフセット
 	let lastOffset = { x: 0, y: 0 }; // ドラッグ終了時のオフセット
@@ -16,8 +20,7 @@
 	const MIN_SCALE = 0.3;
 
 	// Cage 関連
-	let cage: ComplexNumber[] = [];
-	let cageOrg: ComplexNumber[] = [];
+	let cage: BezierSpline;
 	let star: ComplexNumber[] = [];
 	let coeffs: ComplexNumber[][] = []; //コーシー変換係数
 
@@ -29,15 +32,23 @@
 	onMount(() => {
 		ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 		// init cage
-		cage = [
+		const cagePoints = [
 			new ComplexNumber(-200, -200),
+			new ComplexNumber(0, -250),
+			new ComplexNumber(0, -150),
 			new ComplexNumber(200, -200),
+			new ComplexNumber(250, 0),
+			new ComplexNumber(150, 0),
 			new ComplexNumber(200, 200),
+			new ComplexNumber(0, 250),
+			new ComplexNumber(0, 150),
 			new ComplexNumber(-200, 200),
+			new ComplexNumber(-250, 0),
+			new ComplexNumber(-150, 0),
 		];
-		cage.forEach((p) => {
-			cageOrg = [...cageOrg, new ComplexNumber(p.real, p.imaginary)];
-		});
+		const cageTerminalIds = [0, 3, 6, 9];
+		cage = new BezierSpline(cagePoints, cageTerminalIds);
+
 		// init obj in cage
 		const spikes = 5;
 		const outerRadius = 100;
@@ -52,24 +63,7 @@
 			star = [...star, new ComplexNumber(x, y)];
 		}
 		// init C（コーシー変換係数）
-		cage.forEach((p, i) => {
-			coeffs = [...coeffs, []];
-			star.forEach((z) => {
-				const iNext = (i + 1) % cage.length;
-				const iPrev = i == 0 ? cage.length - 1 : i - 1;
-				const a = p.sub(cage[iPrev]);
-				const b = p.sub(z);
-				const aNext = cage[iNext].sub(p);
-				const bNext = cage[iNext].sub(z);
-				const bPrev = cage[iPrev].sub(z);
-				const c = bNext
-					.div(aNext)
-					.mul(bNext.div(b).log())
-					.sub(bPrev.div(a).mul(b.div(bPrev).log()))
-					.div(new ComplexNumber(0, 2 * Math.PI));
-				coeffs[i] = [...coeffs[i], c];
-			});
-		});
+		coeffs = getCoeffs(cage, star);
 		// init canvas
 		handleResize();
 		resetCanvas();
@@ -98,8 +92,8 @@
 		} else if (mode == "edit") {
 			if (pActive != -1) {
 				mousePointDiff = {
-					x: posInCanvas.x - cage[pActive].real,
-					y: posInCanvas.y - cage[pActive].imaginary,
+					x: posInCanvas.x - cage.points[pActive].real,
+					y: posInCanvas.y - cage.points[pActive].imaginary,
 				};
 			}
 		}
@@ -120,17 +114,14 @@
 			// Editモードではケージを編集する
 			if (isDragging) {
 				if (pActive != -1) {
-					cage[pActive].real = posInCanvas.x - mousePointDiff.x;
-					cage[pActive].imaginary = posInCanvas.y - mousePointDiff.y;
-					let newStar: ComplexNumber[] = [];
-					star.forEach((_, i) => {
-						const newP = cauchyTransform(i);
-						newStar = [...newStar, newP];
-					});
-					star = newStar;
+					cage.points[pActive].real =
+						posInCanvas.x - mousePointDiff.x;
+					cage.points[pActive].imaginary =
+						posInCanvas.y - mousePointDiff.y;
+					star = cauchyCoordinates(coeffs, cage.points);
 				}
 			} else {
-				pActive = getNearestPointId(cage, 50);
+				pActive = getNearestPointId(cage.points, 50);
 			}
 		}
 	}
@@ -183,6 +174,7 @@
 	}
 
 	function resetCanvas() {
+		const contentBbox = cage.bbox();
 		// スケールをリセット
 		const contentWidth = contentBbox.max.x - contentBbox.min.x;
 		const contentHeight = contentBbox.max.y - contentBbox.min.y;
@@ -201,23 +193,39 @@
 		offset = { x: -centerX, y: centerY };
 		lastOffset = { ...offset };
 	}
-	function draw(points: ComplexNumber[], active?: number) {
+	function drawLine(points: ComplexNumber[]) {
 		// draw cage
 		points.forEach((start, i) => {
 			const end = points[(i + 1) % points.length];
 			ctx.moveTo(start.real, start.imaginary);
 			ctx.lineTo(end.real, end.imaginary);
-			if (i == active) {
-				drawPoint(start.real, start.imaginary, 10);
+		});
+	}
+	function drawHandles(bSpline: BezierSpline, pActive: number) {
+		bSpline.points.forEach((p, i) => {
+			const next = bSpline.points[(i + 1) % bSpline.points.length];
+			ctx.moveTo(p.real, p.imaginary);
+			ctx.lineTo(next.real, next.imaginary);
+			if (i == pActive) {
+				drawPoint(p.real, p.imaginary, 10);
 			} else {
-				drawPoint(start.real, start.imaginary);
+				drawPoint(p.real, p.imaginary);
 			}
 		});
 	}
 	function drawAll() {
 		ctx.beginPath();
-		draw(cage, pActive);
-		draw(star);
+		// draw cage
+		ctx.strokeStyle = "lightgray";
+		ctx.fillStyle = "lightgray";
+		drawHandles(cage, pActive);
+		ctx.stroke();
+		ctx.beginPath();
+		const cagePoints = cage.getDrawingPoints();
+		ctx.strokeStyle = "black";
+		drawLine(cagePoints);
+		// draw content
+		drawLine(star);
 		ctx.stroke();
 	}
 
@@ -239,17 +247,6 @@
 				result = i;
 				distMin = dist;
 			}
-		});
-		return result;
-	}
-
-	// コーシー変換
-	function cauchyTransform(i: number) {
-		let result = new ComplexNumber(0, 0);
-		cageOrg.forEach((_, j) => {
-			const c = coeffs[j][i];
-			const f = cage[j];
-			result = result.add(c.mul(f));
 		});
 		return result;
 	}
