@@ -55,16 +55,10 @@ export class BezierSplineCage {
     }
     cauchyCoordinates(coeffs: ComplexNumber[][][]) {
         let result: ComplexNumber[] = []
-        let points: ComplexNumber[] = []
-        this.curves.forEach((cps) => {
-            cps.forEach((pId) => {
-                points = [...points, this.points[pId]]
-            })
-        })
         coeffs.forEach((pz) => {
             let newP = new ComplexNumber(0, 0)
-            pz.forEach((curve, i) => {
-                curve.forEach((p, j) => {
+            pz.forEach((ci, i) => {
+                ci.forEach((p, j) => {
                     const pId = this.curves[i][j]
                     newP = newP.add(p.mul(this.points[pId]))
                 })
