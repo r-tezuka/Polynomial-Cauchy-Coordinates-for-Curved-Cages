@@ -51,7 +51,7 @@ export function getCoeffs(cage: BezierSpline, content: ComplexNumber[]) {
             const iEnd = j + 1 == cage.terminals.length ? cage.points.length : cage.terminals[j + 1]
             const degree = iEnd - iStart
             const edge: [ComplexNumber, ComplexNumber] = [cage.points[iStart], cage.points[iEnd % cage.points.length]]
-            for (let m: number = 0; m < degree; m++) {
+            for (let m: number = 0; m <= degree; m++) {
                 const c = integral(z, edge, m, degree)
                 result[i] = [...result[i], c.div(new ComplexNumber(0, 2 * Math.PI))]
             }
@@ -60,12 +60,19 @@ export function getCoeffs(cage: BezierSpline, content: ComplexNumber[]) {
     return result
 }
 
-export function cauchyCoordinates(coeffs: ComplexNumber[][], controlPoints: ComplexNumber[]) {
+export function cauchyCoordinates(coeffs: ComplexNumber[][], cage: BezierSpline) {
     let result: ComplexNumber[] = []
+    let cps: ComplexNumber[] = []
+    cage.terminals.forEach((iStart, j) => {
+        const iEnd = j + 1 == cage.terminals.length ? cage.points.length : cage.terminals[j + 1]
+        for (let j: number = iStart; j <= iEnd; j++) {
+            cps = [...cps, cage.points[j % cage.points.length]]
+        }
+    })
     coeffs.forEach((pz) => {
         let newP = new ComplexNumber(0, 0)
         pz.forEach((p, i) => {
-            newP = newP.add(p.mul(controlPoints[i]))
+            newP = newP.add(p.mul(cps[i]))
         })
         result = [...result, newP]
     })

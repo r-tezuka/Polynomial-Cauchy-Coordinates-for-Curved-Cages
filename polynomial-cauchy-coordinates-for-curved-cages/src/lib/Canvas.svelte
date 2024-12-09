@@ -118,7 +118,7 @@
 						posInCanvas.x - mousePointDiff.x;
 					cage.points[pActive].imaginary =
 						posInCanvas.y - mousePointDiff.y;
-					star = cauchyCoordinates(coeffs, cage.points);
+					star = cauchyCoordinates(coeffs, cage);
 				}
 			} else {
 				pActive = getNearestPointId(cage.points, 50);
