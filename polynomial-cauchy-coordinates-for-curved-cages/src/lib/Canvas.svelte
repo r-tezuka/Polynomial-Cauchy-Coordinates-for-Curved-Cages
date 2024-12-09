@@ -1,11 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { ComplexNumber } from "$lib/ComplexNumber";
-	import {
-		BezierSpline,
-		getCoeffs,
-		cauchyCoordinates,
-	} from "$lib/CauchyCoordinates";
+	import { BezierSplineCage } from "$lib/CauchyCoordinates";
 
 	// Canvas 関連の変数
 	let canvas: HTMLCanvasElement;
@@ -20,9 +16,9 @@
 	const MIN_SCALE = 0.3;
 
 	// Cage 関連
-	let cage: BezierSpline;
+	let cage: BezierSplineCage;
 	let star: ComplexNumber[] = [];
-	let coeffs: ComplexNumber[][] = []; //コーシー変換係数
+	let coeffs: ComplexNumber[][][] = []; //コーシー変換係数
 
 	// 画面モード
 	let mode = "edit";
@@ -46,8 +42,13 @@
 			new ComplexNumber(-250, 0),
 			new ComplexNumber(-150, 0),
 		];
-		const cageTerminalIds = [0, 3, 6, 9];
-		cage = new BezierSpline(cagePoints, cageTerminalIds);
+		const curves = [
+			[0, 1, 2, 3],
+			[3, 4, 5, 6],
+			[6, 7, 8, 9],
+			[9, 10, 11, 0],
+		];
+		cage = new BezierSplineCage(cagePoints, curves);
 
 		// init obj in cage
 		const spikes = 5;
@@ -63,7 +64,7 @@
 			star = [...star, new ComplexNumber(x, y)];
 		}
 		// init C（コーシー変換係数）
-		coeffs = getCoeffs(cage, star);
+		coeffs = cage.getCoeffs(star);
 		// init canvas
 		handleResize();
 		resetCanvas();
@@ -118,7 +119,7 @@
 						posInCanvas.x - mousePointDiff.x;
 					cage.points[pActive].imaginary =
 						posInCanvas.y - mousePointDiff.y;
-					star = cauchyCoordinates(coeffs, cage);
+					star = cage.cauchyCoordinates(coeffs);
 				}
 			} else {
 				pActive = getNearestPointId(cage.points, 50);
@@ -201,7 +202,7 @@
 			ctx.lineTo(end.real, end.imaginary);
 		});
 	}
-	function drawHandles(bSpline: BezierSpline, pActive: number) {
+	function drawHandles(bSpline: BezierSplineCage, pActive: number) {
 		bSpline.points.forEach((p, i) => {
 			const next = bSpline.points[(i + 1) % bSpline.points.length];
 			ctx.moveTo(p.real, p.imaginary);
