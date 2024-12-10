@@ -29,17 +29,17 @@
 		// init cage
 		const cagePoints = [
 			new ComplexNumber(-200, -200),
-			new ComplexNumber(-100, -220),
-			new ComplexNumber(100, -180),
+			new ComplexNumber(-100, -200),
+			new ComplexNumber(100, -200),
 			new ComplexNumber(200, -200),
-			new ComplexNumber(220, -100),
-			new ComplexNumber(180, 100),
+			new ComplexNumber(200, -100),
+			new ComplexNumber(200, 100),
 			new ComplexNumber(200, 200),
-			new ComplexNumber(100, 220),
-			new ComplexNumber(-100, 180),
+			new ComplexNumber(100, 200),
+			new ComplexNumber(-100, 200),
 			new ComplexNumber(-200, 200),
-			new ComplexNumber(-220, 100),
-			new ComplexNumber(-180, -100),
+			new ComplexNumber(-200, 100),
+			new ComplexNumber(-200, -100),
 		];
 		const curves = [
 			[0, 1, 2, 3],
@@ -115,13 +115,13 @@
 			// Editモードではケージを編集する
 			if (isDragging) {
 				if (pActive != -1) {
-					console.log(star[0]);
+					// console.log(star[0]);
 					cage.points[pActive].real =
 						posInCanvas.x - mousePointDiff.x;
 					cage.points[pActive].imaginary =
 						posInCanvas.y - mousePointDiff.y;
 					star = cage.cauchyCoordinates();
-					console.log(star[0]);
+					// console.log(star[0]);
 				}
 			} else {
 				pActive = getNearestPointId(cage.points, 50);

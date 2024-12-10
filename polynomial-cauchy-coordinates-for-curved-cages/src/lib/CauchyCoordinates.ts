@@ -1,8 +1,8 @@
 import { ComplexNumber } from "$lib/ComplexNumber"
 
 export class BezierSplineCage {
-    points: ComplexNumber[] // コントロールポイントの配列
-    curves: number[][]
+    points: ComplexNumber[] // コントロールポイントの座標
+    curves: number[][] // カーブごとのコントロールポイントのID
     coeffs: ComplexNumber[][][] = []; //コーシー変換係数
     constructor(points: ComplexNumber[], curves: number[][]) {
         this.points = points
@@ -77,7 +77,7 @@ function integral(z: ComplexNumber, edge: [ComplexNumber, ComplexNumber], m: num
     const bPrev = edge[0].sub(z)
     for (let k: number = 0; k <= m; k++) {
         for (let l: number = 0; l <= n - m; l++) {
-            if (n - m - l + k == 0) continue  //0除算はスキップ
+            if (n - m - l + k == 0) continue   //0除算はスキップ
             const mk = binomialCoefficient(m, k)
             const nml = binomialCoefficient(n - m, l)
             const factorNum = mk * nml * Math.pow(-1, n - k - l) / (n - m - l + k)
@@ -98,11 +98,18 @@ function binomialCoefficient(n: number, k: number) {
     return factorial(n) / (factorial(k) * factorial(n - k))
 }
 
+// function factorial(n: number) {
+//     let result = 1
+//     for (let i: number = 2; i <= n; i++) {
+//         result *= i
+//     }
+//     return result
+// }
+
 // 階乗
-function factorial(n: number) {
-    let result = 1
-    for (let i: number = 2; i <= n; i++) {
-        result *= i
+function factorial(n: number): number {
+    if (n === 0 || n === 1) {
+        return 1
     }
-    return result
+    return n * factorial(n - 1)
 }
