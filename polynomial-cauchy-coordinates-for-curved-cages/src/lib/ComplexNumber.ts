@@ -40,6 +40,31 @@ export class ComplexNumber {
         return new ComplexNumber(real, imaginary);
     }
 
+    // div(other: ComplexNumber): ComplexNumber {
+    //     const conjugate = other.conjugate();
+    //     const numerator = this.mul(conjugate);
+    //     const denominator = other.real ** 2 + other.imaginary ** 2;
+    // 
+    //     if (denominator === 0) {
+    //         throw new Error("Division by zero is not allowed.");
+    //     }
+    // 
+    //     return new ComplexNumber(numerator.real / denominator, numerator.imaginary / denominator);
+    // }
+
+
+    // pow(n: number): ComplexNumber {
+    //     if (n === 0) {
+    //         return new ComplexNumber(1, 0); // 任意の数の0乗は1
+    //     }
+    //     if (n === 1) {
+    //         return this; // 1乗はその数自身
+    //     }
+    //     const halfPower = this.pow(Math.floor(n / 2));
+    //     const fullPower = halfPower.mul(halfPower);
+    //     return n % 2 === 0 ? fullPower : fullPower.mul(this);
+    // }
+
     pow(n: number): ComplexNumber {
         // 極形式を使用して計算
         const modulus = this.modulus(); // 絶対値

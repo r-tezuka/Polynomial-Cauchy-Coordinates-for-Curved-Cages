@@ -18,7 +18,6 @@
 	// Cage 関連
 	let cage: BezierSplineCage;
 	let star: ComplexNumber[] = [];
-	let coeffs: ComplexNumber[][][] = []; //コーシー変換係数
 
 	// 画面モード
 	let mode = "edit";
@@ -30,17 +29,17 @@
 		// init cage
 		const cagePoints = [
 			new ComplexNumber(-200, -200),
-			new ComplexNumber(0, -250),
-			new ComplexNumber(0, -150),
+			new ComplexNumber(-100, -220),
+			new ComplexNumber(100, -180),
 			new ComplexNumber(200, -200),
-			new ComplexNumber(250, 0),
-			new ComplexNumber(150, 0),
+			new ComplexNumber(220, -100),
+			new ComplexNumber(180, 100),
 			new ComplexNumber(200, 200),
-			new ComplexNumber(0, 250),
-			new ComplexNumber(0, 150),
+			new ComplexNumber(100, 220),
+			new ComplexNumber(-100, 180),
 			new ComplexNumber(-200, 200),
-			new ComplexNumber(-250, 0),
-			new ComplexNumber(-150, 0),
+			new ComplexNumber(-220, 100),
+			new ComplexNumber(-180, -100),
 		];
 		const curves = [
 			[0, 1, 2, 3],
@@ -60,11 +59,12 @@
 			const angle = i * step;
 			const radius = i % 2 === 0 ? outerRadius : innerRadius;
 			const x = cx + Math.cos(angle) * radius;
-			const y = cy - Math.sin(angle) * radius; // CanvasのY軸は下方向が正
+			const y = cy + Math.sin(angle) * radius;
 			star = [...star, new ComplexNumber(x, y)];
 		}
 		// init C（コーシー変換係数）
-		coeffs = cage.getCoeffs(star);
+		cage.setCoeffs(star);
+		// star = cage.cauchyCoordinates(coeffs);
 		// init canvas
 		handleResize();
 		resetCanvas();
@@ -115,11 +115,13 @@
 			// Editモードではケージを編集する
 			if (isDragging) {
 				if (pActive != -1) {
+					console.log(star[0]);
 					cage.points[pActive].real =
 						posInCanvas.x - mousePointDiff.x;
 					cage.points[pActive].imaginary =
 						posInCanvas.y - mousePointDiff.y;
-					star = cage.cauchyCoordinates(coeffs);
+					star = cage.cauchyCoordinates();
+					console.log(star[0]);
 				}
 			} else {
 				pActive = getNearestPointId(cage.points, 50);

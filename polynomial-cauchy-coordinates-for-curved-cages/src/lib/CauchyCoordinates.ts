@@ -3,6 +3,7 @@ import { ComplexNumber } from "$lib/ComplexNumber"
 export class BezierSplineCage {
     points: ComplexNumber[] // コントロールポイントの配列
     curves: number[][]
+    coeffs: ComplexNumber[][][] = []; //コーシー変換係数
     constructor(points: ComplexNumber[], curves: number[][]) {
         this.points = points
         this.curves = curves
@@ -37,25 +38,26 @@ export class BezierSplineCage {
         })
         return result
     }
-    getCoeffs(content: ComplexNumber[]) {
+    setCoeffs(content: ComplexNumber[]) {
         let result: ComplexNumber[][][] = []
         content.forEach((z, i) => {
             result = [...result, []]
-            this.curves.forEach((cps, j) => {
+            this.curves.forEach((controlPoints, j) => {
                 result[i] = [...result[i], []]
-                const degree = cps.length - 1
-                const edge: [ComplexNumber, ComplexNumber] = [this.points[cps[0]], this.points[cps[degree]]]
+                const degree = controlPoints.length - 1
+                const [edgeStart, edgeEnd] = [controlPoints[0], controlPoints[degree]]
+                const edge: [ComplexNumber, ComplexNumber] = [this.points[edgeStart], this.points[edgeEnd]]
                 for (let m: number = 0; m <= degree; m++) {
                     const c = integral(z, edge, m, degree)
                     result[i][j] = [...result[i][j], c.div(new ComplexNumber(0, 2 * Math.PI))]
                 }
             })
         })
-        return result
+        this.coeffs = result
     }
-    cauchyCoordinates(coeffs: ComplexNumber[][][]) {
+    cauchyCoordinates() {
         let result: ComplexNumber[] = []
-        coeffs.forEach((pz) => {
+        this.coeffs.forEach((pz) => {
             let newP = new ComplexNumber(0, 0)
             pz.forEach((ci, i) => {
                 ci.forEach((p, j) => {
@@ -70,14 +72,12 @@ export class BezierSplineCage {
 }
 
 function integral(z: ComplexNumber, edge: [ComplexNumber, ComplexNumber], m: number, n: number) {
-    const a = edge[1].sub(edge[0])
+    let result = new ComplexNumber(0, 0)
     const b = edge[1].sub(z)
     const bPrev = edge[0].sub(z)
-    const nm = binomialCoefficient(n, m)
-    let result = new ComplexNumber(0, 0)
     for (let k: number = 0; k <= m; k++) {
         for (let l: number = 0; l <= n - m; l++) {
-            if (n - m - l + k == 0) continue //0除算はスキップ
+            if (n - m - l + k == 0) continue  //0除算はスキップ
             const mk = binomialCoefficient(m, k)
             const nml = binomialCoefficient(n - m, l)
             const factorNum = mk * nml * Math.pow(-1, n - k - l) / (n - m - l + k)
@@ -86,6 +86,8 @@ function integral(z: ComplexNumber, edge: [ComplexNumber, ComplexNumber], m: num
         }
     }
     result = result.add(bPrev.mul(-1).pow(m).mul(b.pow(n - m)).mul(b.div(bPrev).log()))
+    const a = edge[1].sub(edge[0])
+    const nm = binomialCoefficient(n, m)
     result = result.mul(nm)
     result = result.div(a.pow(n))
     return result
