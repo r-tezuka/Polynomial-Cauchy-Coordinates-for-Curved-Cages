@@ -2,6 +2,7 @@
 	import { onMount } from "svelte";
 	import { ComplexNumber } from "$lib/ComplexNumber";
 	import { BezierSplineCage } from "$lib/CauchyCoordinates";
+	import { SVG } from "@svgdotjs/svg.js";
 
 	// Canvas 関連の変数
 	let canvas: HTMLCanvasElement;
@@ -18,7 +19,7 @@
 
 	// Cage 関連
 	let cage: BezierSplineCage;
-	let shape: ComplexNumber[] = [];
+	let shape: ComplexNumber[][] = [];
 	let cagePolygon: ComplexNumber[] = []; // 作成中のケージを格納する
 
 	// 画面モード
@@ -79,6 +80,28 @@
 		cagePolygon = [];
 		resetCanvas();
 		mode = "deform";
+	}
+	function handleFileDrop(event: DragEvent) {
+		event.preventDefault();
+
+		// ドロップされたファイルを取得
+		const dataTransfer = event.dataTransfer as DataTransfer;
+		const file = dataTransfer.files[0];
+
+		if (file && file.type === "image/svg+xml") {
+			const reader = new FileReader();
+
+			reader.onload = (e: ProgressEvent<FileReader>) => {
+				const reader = e.target as FileReader;
+				const svgContent = reader.result as string;
+				const draw = SVG()
+					.addTo(canvas)
+					.size(canvas.width, canvas.height);
+				draw.svg(svgContent);
+			};
+		} else {
+			alert("SVGファイルをドロップしてください");
+		}
 	}
 
 	// マウスイベント
@@ -269,7 +292,9 @@
 		ctx.strokeStyle = "black";
 		drawPolygon(cagePoints, true);
 		// draw content
-		drawPolygon(shape, true);
+		shape.forEach((path) => {
+			drawPolygon(path, true);
+		});
 		drawPolygon(cagePolygon, false);
 
 		if (mode == "create") {
@@ -353,7 +378,7 @@
 			const y = cy + Math.sin(angle) * radius;
 			star = [...star, new ComplexNumber(x, y)];
 		}
-		return star;
+		return [star];
 	}
 
 	// モード一覧
@@ -375,6 +400,7 @@
 		on:mouseup={onMouseUp}
 		on:mouseleave={onMouseLeave}
 		on:wheel={handleWheel}
+		on:drop={handleFileDrop}
 	></canvas>
 	<div class="overlay-text-left">
 		{#each options as { value, label }}
