@@ -14,16 +14,19 @@
 	let posInCanvas = { x: 0, y: 0 }; // オフセットとスケールを考慮したcanvas内マウス位置
 	const MAX_SCALE = 5;
 	const MIN_SCALE = 0.3;
+	const NEAREST_THRESHOLD = 20; // 最近傍点の検出閾値
 
 	// Cage 関連
 	let cage: BezierSplineCage;
 	let shape: ComplexNumber[] = [];
+	let cagePolygon: ComplexNumber[] = []; // 作成中のケージを格納する
 
 	// 画面モード
 	let mode = "deform";
 	let mousePointDiff = { x: 0, y: 0 };
 	let pActive = -1;
 
+	// 初期化
 	onMount(() => {
 		ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 
@@ -38,7 +41,8 @@
 		handleResize();
 		resetCanvas();
 	});
-	// リサイズ時の処理
+
+	// ウインドウのリサイズ
 	function handleResize() {
 		// キャンバスをブラウザのサイズに合わせる
 		const rect = canvas.getBoundingClientRect();
@@ -46,7 +50,8 @@
 		canvas.width = window.innerWidth;
 		canvas.height = window.innerHeight - headerOffset;
 	}
-	// キーボードイベントの管理
+
+	// キーボードイベント
 	function handleKeydown(e: KeyboardEvent) {
 		// Spaceキーを押したときの処理
 		if (e.code === "Space") {
@@ -54,6 +59,29 @@
 			resetCanvas();
 		}
 	}
+
+	// UIイベント
+	function handleModeChange(event: Event) {
+		cagePolygon = [];
+		const input = event.target as HTMLInputElement;
+		if (input.value == "create") {
+			cage = new BezierSplineCage([], []);
+		}
+		if (input.value == "deform") {
+			cage.setCoeffs(shape);
+			shape = cage.cauchyCoordinates();
+		}
+	}
+	function handleReset() {
+		cage = createDefaultCage();
+		cage.setCoeffs(createDefaultContent());
+		shape = cage.cauchyCoordinates();
+		cagePolygon = [];
+		resetCanvas();
+		mode = "deform";
+	}
+
+	// マウスイベント
 	function onMouseDown(e: MouseEvent) {
 		isDragging = true;
 		if (mode == "view") {
@@ -67,7 +95,22 @@
 				};
 			}
 		} else if (mode == "create") {
-			// Create モードではケージを作成する
+			if (
+				cagePolygon.length > 0 &&
+				Math.abs(cagePolygon[0].real - posInCanvas.x) <
+					NEAREST_THRESHOLD &&
+				Math.abs(cagePolygon[0].imaginary - posInCanvas.y) <
+					NEAREST_THRESHOLD
+			) {
+				cage = createCage(cagePolygon);
+				cagePolygon = [];
+				mode = "edit";
+			} else {
+				cagePolygon = [
+					...cagePolygon,
+					new ComplexNumber(posInCanvas.x, posInCanvas.y),
+				];
+			}
 		}
 	}
 	function onMouseMove(e: MouseEvent) {
@@ -82,8 +125,8 @@
 				offset.x = lastOffset.x + (e.clientX - dragStart.x);
 				offset.y = lastOffset.y + (e.clientY - dragStart.y);
 			}
-		} else if (mode == "deform") {
-			// Editモードではケージを編集する
+		} else if (mode == "deform" || mode == "edit") {
+			// edit モードではケージを編集する
 			if (isDragging) {
 				if (pActive != -1) {
 					// console.log(star[0]);
@@ -91,13 +134,31 @@
 						posInCanvas.x - mousePointDiff.x;
 					cage.points[pActive].imaginary =
 						posInCanvas.y - mousePointDiff.y;
-					shape = cage.cauchyCoordinates();
+					if (mode == "deform") {
+						shape = cage.cauchyCoordinates();
+					}
 					// console.log(star[0]);
 				}
 			} else {
-				pActive = getNearestPointId(cage.points, 50);
+				pActive = getNearestPointId(cage.points, NEAREST_THRESHOLD);
 			}
 		}
+	}
+	function getNearestPointId(points: ComplexNumber[], threshold: number) {
+		let result = -1;
+		let distMin = Infinity;
+		points.forEach((p, i) => {
+			const dist = Math.sqrt(
+				(p.real - posInCanvas.x) * (p.real - posInCanvas.x) +
+					(p.imaginary - posInCanvas.y) *
+						(p.imaginary - posInCanvas.y),
+			);
+			if (dist < distMin && dist < threshold) {
+				result = i;
+				distMin = dist;
+			}
+		});
+		return result;
 	}
 	function onMouseUp(e: MouseEvent) {
 		isDragging = false;
@@ -107,7 +168,6 @@
 	function onMouseLeave(e: MouseEvent) {
 		isDragging = false; // マウスが Canvas から出たらドラッグ終了
 	}
-	// ホイールイベントでスケールを変更
 	function handleWheel(e: WheelEvent) {
 		// デフォルトのホイール操作を無効化
 		e.preventDefault();
@@ -130,12 +190,20 @@
 	}
 
 	// 再描画。定義内の変数が更新されたら呼ばれる
-	$: pActive, canvas, ctx, offset, scale, cage, updateCanvas();
+	$: pActive,
+		canvas,
+		ctx,
+		offset,
+		scale,
+		cage,
+		posInCanvas,
+		cagePolygon,
+		mode,
+		updateCanvas();
 
+	// 画面の描画
 	function updateCanvas() {
-		if (!ctx) {
-			return;
-		}
+		if (!ctx) return;
 		ctx.save(); // 現在の状態を保存
 		ctx.clearRect(0, 0, canvas.width, canvas.height); // canvasのクリア
 		ctx.setTransform(1, 0, 0, 1, 0, 0); // 変換行列を（設定されていれば）リセット
@@ -146,7 +214,6 @@
 		drawAll(); // コンテンツの描画
 		ctx.restore(); // 保存した状態を復元
 	}
-
 	function resetCanvas() {
 		const contentBbox = cage.bbox();
 		// スケールをリセット
@@ -166,6 +233,85 @@
 		// オフセットをリセット
 		offset = { x: -centerX, y: centerY };
 		lastOffset = { ...offset };
+	}
+	function drawPolygon(points: ComplexNumber[], isLoop: boolean) {
+		// draw polygon
+		points.forEach((start, i) => {
+			const end = points[(i + 1) % points.length];
+			if (!isLoop && i == points.length - 1) return;
+			ctx.moveTo(start.real, start.imaginary);
+			ctx.lineTo(end.real, end.imaginary);
+		});
+	}
+	function drawHandles(bSpline: BezierSplineCage, pActive: number) {
+		bSpline.points.forEach((p, i) => {
+			const next = bSpline.points[(i + 1) % bSpline.points.length];
+			ctx.moveTo(p.real, p.imaginary);
+			ctx.lineTo(next.real, next.imaginary);
+			if (i == pActive) {
+				drawPoint(p.real, p.imaginary, 10);
+			} else {
+				drawPoint(p.real, p.imaginary);
+			}
+		});
+	}
+	function drawAll() {
+		ctx.beginPath();
+		// draw cage
+		ctx.strokeStyle = "lightgray";
+		ctx.fillStyle = "lightgray";
+		drawHandles(cage, pActive);
+		ctx.stroke();
+		ctx.beginPath();
+		const cagePoints = cage.getDrawingPoints();
+		ctx.strokeStyle = "black";
+		drawPolygon(cagePoints, true);
+		// draw content
+		drawPolygon(shape, true);
+		drawPolygon(cagePolygon, false);
+
+		if (mode == "create") {
+			if (cagePolygon.length > 0) {
+				if (
+					cagePolygon.length > 1 &&
+					Math.abs(cagePolygon[0].real - posInCanvas.x) <
+						NEAREST_THRESHOLD &&
+					Math.abs(cagePolygon[0].imaginary - posInCanvas.y) <
+						NEAREST_THRESHOLD
+				) {
+					drawPoint(
+						cagePolygon[0].real,
+						cagePolygon[0].imaginary,
+						10,
+					);
+				}
+				const last = cagePolygon[cagePolygon.length - 1];
+				ctx.moveTo(last.real, last.imaginary);
+				ctx.lineTo(posInCanvas.x, posInCanvas.y);
+			}
+		}
+		ctx.stroke();
+	}
+	function drawPoint(x: number, y: number, r?: number) {
+		if (r == undefined) r = 5;
+		ctx.fillRect(x - r / 2, y - r / 2, r, r);
+	}
+
+	// オブジェクトの生成
+	function createCage(points: ComplexNumber[]) {
+		let cagePoints: ComplexNumber[] = [];
+		let curves: number[][] = [];
+		points.forEach((start, i) => {
+			const end = points[(i + 1) % points.length];
+			const vec = end.sub(start);
+			const startHandle = vec.mul(0.3).add(start);
+			const endHandle = vec.mul(0.7).add(start);
+			const j = cagePoints.length;
+			const endPointId = i == points.length - 1 ? 0 : j + 3;
+			curves = [...curves, [j, j + 1, j + 2, endPointId]];
+			cagePoints = [...cagePoints, start, startHandle, endHandle];
+		});
+		return new BezierSplineCage(cagePoints, curves);
 	}
 	function createDefaultCage() {
 		// init cage
@@ -206,78 +352,6 @@
 			star = [...star, new ComplexNumber(x, y)];
 		}
 		return star;
-	}
-	function drawLine(points: ComplexNumber[]) {
-		// draw cage
-		points.forEach((start, i) => {
-			const end = points[(i + 1) % points.length];
-			ctx.moveTo(start.real, start.imaginary);
-			ctx.lineTo(end.real, end.imaginary);
-		});
-	}
-	function drawHandles(bSpline: BezierSplineCage, pActive: number) {
-		bSpline.points.forEach((p, i) => {
-			const next = bSpline.points[(i + 1) % bSpline.points.length];
-			ctx.moveTo(p.real, p.imaginary);
-			ctx.lineTo(next.real, next.imaginary);
-			if (i == pActive) {
-				drawPoint(p.real, p.imaginary, 10);
-			} else {
-				drawPoint(p.real, p.imaginary);
-			}
-		});
-	}
-	function drawAll() {
-		ctx.beginPath();
-		// draw cage
-		ctx.strokeStyle = "lightgray";
-		ctx.fillStyle = "lightgray";
-		drawHandles(cage, pActive);
-		ctx.stroke();
-		ctx.beginPath();
-		const cagePoints = cage.getDrawingPoints();
-		ctx.strokeStyle = "black";
-		drawLine(cagePoints);
-		// draw content
-		drawLine(shape);
-		ctx.stroke();
-	}
-
-	function drawPoint(x: number, y: number, r?: number) {
-		if (r == undefined) r = 5;
-		ctx.fillRect(x - r / 2, y - r / 2, r, r);
-	}
-
-	function getNearestPointId(points: ComplexNumber[], threshold: number) {
-		let result = -1;
-		let distMin = Infinity;
-		points.forEach((p, i) => {
-			const dist = Math.sqrt(
-				(p.real - posInCanvas.x) * (p.real - posInCanvas.x) +
-					(p.imaginary - posInCanvas.y) *
-						(p.imaginary - posInCanvas.y),
-			);
-			if (dist < distMin && dist < threshold) {
-				result = i;
-				distMin = dist;
-			}
-		});
-		return result;
-	}
-
-	function handleModeChange(event: Event) {
-		const input = event.target as HTMLInputElement;
-		if (input.value == "create") {
-			cage = new BezierSplineCage([], []);
-		}
-	}
-
-	function handleReset() {
-		cage = createDefaultCage();
-		cage.setCoeffs(createDefaultContent());
-		shape = cage.cauchyCoordinates();
-		mode = "deform";
-		resetCanvas();
 	}
 
 	// モード一覧
