@@ -8,7 +8,7 @@ export class BezierSplineCage {
         this.points = points
         this.curves = curves
     }
-    getDrawingPoints() {
+    polygonize() {
         const T = 100 // Bezier の分割数
         let result: ComplexNumber[] = []
         this.curves.forEach((cps) => {
@@ -38,9 +38,9 @@ export class BezierSplineCage {
         })
         return result
     }
-    setCoeffs(content: ComplexNumber[]) {
+    setCoeffs(shape: ComplexNumber[]) {
         let result: ComplexNumber[][][] = []
-        content.forEach((z, i) => {
+        shape.forEach((z, i) => {
             result = [...result, []]
             this.curves.forEach((controlPoints, j) => {
                 result[i] = [...result[i], []]

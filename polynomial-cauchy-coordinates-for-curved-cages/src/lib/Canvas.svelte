@@ -263,7 +263,7 @@
 		drawHandles(cage, pActive);
 		ctx.stroke();
 		ctx.beginPath();
-		const cagePoints = cage.getDrawingPoints();
+		const cagePoints = cage.polygonize();
 		ctx.strokeStyle = "black";
 		drawPolygon(cagePoints, true);
 		// draw content
