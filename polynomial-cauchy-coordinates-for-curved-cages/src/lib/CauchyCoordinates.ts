@@ -98,14 +98,6 @@ function binomialCoefficient(n: number, k: number) {
     return factorial(n) / (factorial(k) * factorial(n - k))
 }
 
-// function factorial(n: number) {
-//     let result = 1
-//     for (let i: number = 2; i <= n; i++) {
-//         result *= i
-//     }
-//     return result
-// }
-
 // 階乗
 function factorial(n: number): number {
     if (n === 0 || n === 1) {

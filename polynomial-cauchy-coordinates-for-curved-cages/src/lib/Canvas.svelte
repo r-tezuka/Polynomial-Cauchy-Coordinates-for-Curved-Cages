@@ -17,54 +17,23 @@
 
 	// Cage 関連
 	let cage: BezierSplineCage;
-	let star: ComplexNumber[] = [];
+	let shape: ComplexNumber[] = [];
 
 	// 画面モード
-	let mode = "edit";
+	let mode = "deform";
 	let mousePointDiff = { x: 0, y: 0 };
 	let pActive = -1;
 
 	onMount(() => {
 		ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
-		// init cage
-		const cagePoints = [
-			new ComplexNumber(-200, -200),
-			new ComplexNumber(-100, -200),
-			new ComplexNumber(100, -200),
-			new ComplexNumber(200, -200),
-			new ComplexNumber(200, -100),
-			new ComplexNumber(200, 100),
-			new ComplexNumber(200, 200),
-			new ComplexNumber(100, 200),
-			new ComplexNumber(-100, 200),
-			new ComplexNumber(-200, 200),
-			new ComplexNumber(-200, 100),
-			new ComplexNumber(-200, -100),
-		];
-		const curves = [
-			[0, 1, 2, 3],
-			[3, 4, 5, 6],
-			[6, 7, 8, 9],
-			[9, 10, 11, 0],
-		];
-		cage = new BezierSplineCage(cagePoints, curves);
 
-		// init obj in cage
-		const spikes = 5;
-		const outerRadius = 100;
-		const innerRadius = 30;
-		const [cx, cy] = [0, 0];
-		const step = Math.PI / spikes;
-		for (let i = 0; i < 2 * spikes; i++) {
-			const angle = i * step;
-			const radius = i % 2 === 0 ? outerRadius : innerRadius;
-			const x = cx + Math.cos(angle) * radius;
-			const y = cy + Math.sin(angle) * radius;
-			star = [...star, new ComplexNumber(x, y)];
-		}
+		// init cage and shape
+		cage = createDefaultCage();
+		shape = createDefaultContent();
+
 		// init C（コーシー変換係数）
-		cage.setCoeffs(star);
-		// star = cage.cauchyCoordinates(coeffs);
+		cage.setCoeffs(shape);
+		shape = cage.cauchyCoordinates();
 		// init canvas
 		handleResize();
 		resetCanvas();
@@ -90,13 +59,15 @@
 		if (mode == "view") {
 			isDragging = true;
 			dragStart = { x: e.clientX, y: e.clientY };
-		} else if (mode == "edit") {
+		} else if (mode == "deform") {
 			if (pActive != -1) {
 				mousePointDiff = {
 					x: posInCanvas.x - cage.points[pActive].real,
 					y: posInCanvas.y - cage.points[pActive].imaginary,
 				};
 			}
+		} else if (mode == "create") {
+			// Create モードではケージを作成する
 		}
 	}
 	function onMouseMove(e: MouseEvent) {
@@ -111,7 +82,7 @@
 				offset.x = lastOffset.x + (e.clientX - dragStart.x);
 				offset.y = lastOffset.y + (e.clientY - dragStart.y);
 			}
-		} else if (mode == "edit") {
+		} else if (mode == "deform") {
 			// Editモードではケージを編集する
 			if (isDragging) {
 				if (pActive != -1) {
@@ -120,7 +91,7 @@
 						posInCanvas.x - mousePointDiff.x;
 					cage.points[pActive].imaginary =
 						posInCanvas.y - mousePointDiff.y;
-					star = cage.cauchyCoordinates();
+					shape = cage.cauchyCoordinates();
 					// console.log(star[0]);
 				}
 			} else {
@@ -196,6 +167,46 @@
 		offset = { x: -centerX, y: centerY };
 		lastOffset = { ...offset };
 	}
+	function createDefaultCage() {
+		// init cage
+		const cagePoints = [
+			new ComplexNumber(-200, -200),
+			new ComplexNumber(-100, -200),
+			new ComplexNumber(100, -200),
+			new ComplexNumber(200, -200),
+			new ComplexNumber(200, -100),
+			new ComplexNumber(200, 100),
+			new ComplexNumber(200, 200),
+			new ComplexNumber(100, 200),
+			new ComplexNumber(-100, 200),
+			new ComplexNumber(-200, 200),
+			new ComplexNumber(-200, 100),
+			new ComplexNumber(-200, -100),
+		];
+		const curves = [
+			[0, 1, 2, 3],
+			[3, 4, 5, 6],
+			[6, 7, 8, 9],
+			[9, 10, 11, 0],
+		];
+		return new BezierSplineCage(cagePoints, curves);
+	}
+	function createDefaultContent() {
+		let star: ComplexNumber[] = [];
+		const spikes = 5;
+		const outerRadius = 100;
+		const innerRadius = 30;
+		const [cx, cy] = [0, 0];
+		const step = Math.PI / spikes;
+		for (let i = 0; i < 2 * spikes; i++) {
+			const angle = i * step;
+			const radius = i % 2 === 0 ? outerRadius : innerRadius;
+			const x = cx + Math.cos(angle) * radius;
+			const y = cy + Math.sin(angle) * radius;
+			star = [...star, new ComplexNumber(x, y)];
+		}
+		return star;
+	}
 	function drawLine(points: ComplexNumber[]) {
 		// draw cage
 		points.forEach((start, i) => {
@@ -228,7 +239,7 @@
 		ctx.strokeStyle = "black";
 		drawLine(cagePoints);
 		// draw content
-		drawLine(star);
+		drawLine(shape);
 		ctx.stroke();
 	}
 
@@ -254,10 +265,27 @@
 		return result;
 	}
 
-	// オプション一覧
+	function handleModeChange(event: Event) {
+		const input = event.target as HTMLInputElement;
+		if (input.value == "create") {
+			cage = new BezierSplineCage([], []);
+		}
+	}
+
+	function handleReset() {
+		cage = createDefaultCage();
+		cage.setCoeffs(createDefaultContent());
+		shape = cage.cauchyCoordinates();
+		mode = "deform";
+		resetCanvas();
+	}
+
+	// モード一覧
 	const options = [
-		{ value: "view", label: "View Mode" },
-		{ value: "edit", label: "Edit Mode" },
+		{ value: "view", label: "View canvas" },
+		{ value: "create", label: "Create cage" },
+		{ value: "edit", label: "Edit cage" },
+		{ value: "deform", label: "Deform shape" },
 	];
 </script>
 
@@ -275,11 +303,18 @@
 	<div class="overlay-text-left">
 		{#each options as { value, label }}
 			<label>
-				<input type="radio" bind:group={mode} {value} />
+				<input
+					type="radio"
+					bind:group={mode}
+					on:change={handleModeChange}
+					{value}
+				/>
 				{label}
 			</label>
 			<br />
 		{/each}
+		<br />
+		<button on:click={handleReset}>Reset cage & shape</button>
 	</div>
 	<div class="overlay-text-right">
 		X: {posInCanvas.x.toPrecision(3)}
