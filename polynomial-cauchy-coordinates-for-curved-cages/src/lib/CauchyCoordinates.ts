@@ -7,6 +7,13 @@ export class BezierSplineCage {
     constructor(points: ComplexNumber[], curves: number[][]) {
         this.points = points
         this.curves = curves
+        // 反時計周りに修正
+        if (isClockwise(points)) {
+            curves.reverse()
+            curves.forEach((cps) => {
+                cps.reverse()
+            })
+        }
     }
     polygonize() {
         const T = 100 // Bezier の分割数
@@ -91,6 +98,20 @@ function integral(z: ComplexNumber, edge: [ComplexNumber, ComplexNumber], m: num
     result = result.mul(nm)
     result = result.div(a.pow(n))
     return result
+}
+
+function isClockwise(points: ComplexNumber[]): boolean {
+    if (points.length < 3) {
+        return true
+    }
+    let sum = 0;
+    for (let i = 0; i < points.length; i++) {
+        const current = points[i];
+        const next = points[(i + 1) % points.length];
+        sum += (next.real - current.real) * (next.imaginary + current.imaginary);
+    }
+    // 面積が正なら反時計回り (CCW)、負なら時計回り (CW)
+    return sum > 0;
 }
 
 // 二項係数

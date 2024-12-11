@@ -120,24 +120,26 @@
 			y: -((e.offsetY - canvas.height / 2 - offset.y) / scale),
 		};
 		if (mode == "view") {
-			// Viewモードでは画面をパンする
+			// 画面をパンする
 			if (isDragging) {
 				offset.x = lastOffset.x + (e.clientX - dragStart.x);
 				offset.y = lastOffset.y + (e.clientY - dragStart.y);
 			}
 		} else if (mode == "deform" || mode == "edit") {
-			// edit モードではケージを編集する
+			// ケージを動かす
 			if (isDragging) {
 				if (pActive != -1) {
-					// console.log(star[0]);
+					// console.log(shape[0]);
 					cage.points[pActive].real =
 						posInCanvas.x - mousePointDiff.x;
 					cage.points[pActive].imaginary =
 						posInCanvas.y - mousePointDiff.y;
+					cage = cage;
 					if (mode == "deform") {
+						// シェイプを変形する
 						shape = cage.cauchyCoordinates();
 					}
-					// console.log(star[0]);
+					// console.log(shape[0]);
 				}
 			} else {
 				pActive = getNearestPointId(cage.points, NEAREST_THRESHOLD);
