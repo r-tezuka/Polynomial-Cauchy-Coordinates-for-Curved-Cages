@@ -342,6 +342,7 @@
 		ctx.restore();
 	}
 	function drawAll() {
+		drawShape(shape);
 		ctx.beginPath();
 		// draw cage
 		ctx.strokeStyle = "lightgray";
@@ -375,7 +376,6 @@
 			}
 		}
 		ctx.stroke();
-		drawShape(shape);
 	}
 	function drawPoint(x: number, y: number, r?: number) {
 		if (r == undefined) r = 5;
