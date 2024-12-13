@@ -3,6 +3,7 @@
 	import { ComplexNumber, convertToComplexNumber } from "$lib/ComplexNumber";
 	import { BezierSplineCage } from "$lib/CauchyCoordinates";
 	import { parseSVG, shiftInverse } from "$lib/Svg";
+	import { resolveRoute } from "$app/paths";
 
 	// Canvas 関連の変数
 	let canvas: HTMLCanvasElement;
@@ -17,15 +18,19 @@
 	const MIN_SCALE = 0.3;
 	const NEAREST_THRESHOLD = 20; // 最近傍点の検出閾値
 
+	class Shape {
+		points: ComplexNumber[] = [];
+		paths: {
+			segments: { command: string; ids: number[] }[];
+			fill: string | undefined;
+			stroke: string | undefined;
+		}[] = [];
+	}
+
 	// Cage 関連
 	let cage: BezierSplineCage;
-	let shape: ComplexNumber[][] = [];
+	let shape: Shape = new Shape();
 	let cagePolygon: ComplexNumber[] = []; // 作成中のケージを格納する
-	let svg: {
-		d: { command: string; points: ComplexNumber[] }[];
-		fill: string | undefined;
-		stroke: string | undefined;
-	}[] = [];
 
 	// 画面モード
 	let mode = "deform";
@@ -41,8 +46,8 @@
 		shape = createDefaultContent();
 
 		// init C（コーシー変換係数）
-		cage.setCoeffs(shape);
-		shape = cage.cauchyCoordinates();
+		cage.setCoeffs(shape.points);
+		shape.points = cage.cauchyCoordinates();
 		// init canvas
 		handleResize();
 		resetCanvas();
@@ -74,14 +79,15 @@
 			cage = new BezierSplineCage([], []);
 		}
 		if (input.value == "deform") {
-			cage.setCoeffs(shape);
-			shape = cage.cauchyCoordinates();
+			cage.setCoeffs(shape.points);
+			shape.points = cage.cauchyCoordinates();
 		}
 	}
 	function handleReset() {
 		cage = createDefaultCage();
-		cage.setCoeffs(createDefaultContent());
-		shape = cage.cauchyCoordinates();
+		shape = createDefaultContent();
+		cage.setCoeffs(shape.points);
+		shape.points = cage.cauchyCoordinates();
 		cagePolygon = [];
 		resetCanvas();
 		mode = "deform";
@@ -92,13 +98,27 @@
 		const file = dataTransfer.files[0];
 		const svgRaw = await parseSVG(file);
 		const svgShifted = shiftInverse(svgRaw);
-		svg = svgShifted.map((path) => {
-			const newD = path.d.map(({ command, points }) => {
+		let svgPoints: ComplexNumber[] = [];
+		shape = new Shape();
+		svgShifted.forEach((path) => {
+			const segments = path.d.map(({ command, points }) => {
 				const newPoints = convertToComplexNumber(points);
-				return { command, points: newPoints };
+				let id = svgPoints.length;
+				let ids: number[] = [];
+				newPoints.forEach((p, i) => {
+					svgPoints.push(p);
+					ids.push(id + i);
+				});
+				return { command, ids };
 			});
-			return { d: newD, fill: path.fill, stroke: path.stroke };
+			shape.paths.push({
+				segments,
+				fill: path.fill,
+				stroke: path.stroke,
+			});
 		});
+		shape.points = svgPoints;
+		cage.setCoeffs(shape.points);
 	}
 	const preventDefaults = (event: DragEvent) => {
 		event.preventDefault();
@@ -161,7 +181,7 @@
 					cage = cage;
 					if (mode == "deform") {
 						// シェイプを変形する
-						shape = cage.cauchyCoordinates();
+						shape.points = cage.cauchyCoordinates();
 					}
 					// console.log(shape[0]);
 				}
@@ -281,11 +301,14 @@
 			}
 		});
 	}
-	function drawSvg() {
+	function drawShape(shape: Shape) {
 		ctx.save();
-		svg.forEach((path) => {
+		shape.paths.forEach((path) => {
 			ctx.beginPath();
-			path.d.forEach(({ command, points }) => {
+			path.segments.forEach(({ command, ids }) => {
+				const points = ids.map((i) => {
+					return shape.points[i];
+				});
 				if (command == "M") {
 					points.forEach((p) => {
 						ctx.moveTo(p.real, p.imaginary);
@@ -330,9 +353,6 @@
 		ctx.strokeStyle = "black";
 		drawPolygon(cagePoints, true);
 		// draw content
-		shape.forEach((path) => {
-			drawPolygon(path, true);
-		});
 		drawPolygon(cagePolygon, false);
 		if (mode == "create") {
 			if (cagePolygon.length > 0) {
@@ -355,7 +375,7 @@
 			}
 		}
 		ctx.stroke();
-		drawSvg();
+		drawShape(shape);
 	}
 	function drawPoint(x: number, y: number, r?: number) {
 		if (r == undefined) r = 5;
@@ -373,8 +393,8 @@
 			const endHandle = vec.mul(0.7).add(start);
 			const j = cagePoints.length;
 			const endPointId = i == points.length - 1 ? 0 : j + 3;
-			curves = [...curves, [j, j + 1, j + 2, endPointId]];
-			cagePoints = [...cagePoints, start, startHandle, endHandle];
+			curves.push([j, j + 1, j + 2, endPointId]);
+			cagePoints.push(start, startHandle, endHandle);
 		});
 		return new BezierSplineCage(cagePoints, curves);
 	}
@@ -403,20 +423,35 @@
 		return new BezierSplineCage(cagePoints, curves);
 	}
 	function createDefaultContent() {
+		let result = new Shape();
 		let star: ComplexNumber[] = [];
 		const spikes = 5;
 		const outerRadius = 100;
 		const innerRadius = 30;
 		const [cx, cy] = [0, 0];
 		const step = Math.PI / spikes;
+		let ids: number[] = [];
 		for (let i = 0; i < 2 * spikes; i++) {
 			const angle = i * step;
 			const radius = i % 2 === 0 ? outerRadius : innerRadius;
 			const x = cx + Math.cos(angle) * radius;
 			const y = cy + Math.sin(angle) * radius;
-			star = [...star, new ComplexNumber(x, y)];
+			star.push(new ComplexNumber(x, y));
+			ids.push(i);
 		}
-		return [star];
+		ids.push(0); //ループを閉じる
+		result.points = star;
+		result.paths = [
+			{
+				segments: [
+					{ command: "M", ids: [0] },
+					{ command: "L", ids: ids },
+				],
+				fill: undefined,
+				stroke: "black",
+			},
+		];
+		return result;
 	}
 
 	// モード一覧

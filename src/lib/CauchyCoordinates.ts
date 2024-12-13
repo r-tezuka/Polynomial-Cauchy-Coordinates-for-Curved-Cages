@@ -3,7 +3,7 @@ import { ComplexNumber } from "$lib/ComplexNumber"
 export class BezierSplineCage {
     points: ComplexNumber[] // コントロールポイントの座標
     curves: number[][] // カーブごとのコントロールポイントのID
-    coeffs: ComplexNumber[][][][] = []; //コーシー変換係数
+    coeffs: ComplexNumber[][][] = []; //コーシー変換係数
     constructor(points: ComplexNumber[], curves: number[][]) {
         this.points = points
         this.curves = curves
@@ -28,7 +28,7 @@ export class BezierSplineCage {
                     const bernsteinBasis = binomialCoefficient(degree, i) * Math.pow(t, i) * Math.pow(1 - t, degree - i)
                     pDraw = pDraw.add(b.mul(bernsteinBasis))
                 })
-                result = [...result, pDraw]
+                result.push(pDraw)
             }
         })
         return result
@@ -45,40 +45,34 @@ export class BezierSplineCage {
         })
         return result
     }
-    setCoeffs(shape: ComplexNumber[][]) {
-        let result: ComplexNumber[][][][] = []
-        shape.forEach((path, i) => {
-            result = [...result, []]
-            path.forEach((z, j) => {
-                result[i] = [...result[i], []]
-                this.curves.forEach((controlPoints, k) => {
-                    result[i][j] = [...result[i][j], []]
-                    const degree = controlPoints.length - 1
-                    const [edgeStart, edgeEnd] = [controlPoints[0], controlPoints[degree]]
-                    const edge: [ComplexNumber, ComplexNumber] = [this.points[edgeStart], this.points[edgeEnd]]
-                    for (let m: number = 0; m <= degree; m++) {
-                        const c = integral(z, edge, m, degree)
-                        result[i][j][k] = [...result[i][j][k], c.div(new ComplexNumber(0, 2 * Math.PI))]
-                    }
-                })
+    setCoeffs(points: ComplexNumber[]) {
+        let result: ComplexNumber[][][] = []
+        points.forEach((z, i) => {
+            result.push([])
+            this.curves.forEach((controlPoints, j) => {
+                result[i].push([])
+                const degree = controlPoints.length - 1
+                const [edgeStart, edgeEnd] = [controlPoints[0], controlPoints[degree]]
+                const edge: [ComplexNumber, ComplexNumber] = [this.points[edgeStart], this.points[edgeEnd]]
+                for (let m: number = 0; m <= degree; m++) {
+                    const c = integral(z, edge, m, degree)
+                    result[i][j].push(c.div(new ComplexNumber(0, 2 * Math.PI)))
+                }
             })
         })
         this.coeffs = result
     }
     cauchyCoordinates() {
-        let result: ComplexNumber[][] = []
-        this.coeffs.forEach((cPath, i) => {
-            result = [...result, []]
-            cPath.forEach((pz) => {
-                let newP = new ComplexNumber(0, 0)
-                pz.forEach((ci, j) => {
-                    ci.forEach((p, k) => {
-                        const pId = this.curves[j][k]
-                        newP = newP.add(p.mul(this.points[pId]))
-                    })
+        let result: ComplexNumber[] = []
+        this.coeffs.forEach((pz) => {
+            let newP = new ComplexNumber(0, 0)
+            pz.forEach((ci, i) => {
+                ci.forEach((p, j) => {
+                    const pId = this.curves[i][j]
+                    newP = newP.add(p.mul(this.points[pId]))
                 })
-                result[i] = [...result[i], newP]
             })
+            result.push(newP)
         })
         return result
     }
