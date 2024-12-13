@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-	import { ComplexNumber } from "$lib/ComplexNumber";
+	import { ComplexNumber, convertToComplexNumber } from "$lib/ComplexNumber";
 	import { BezierSplineCage } from "$lib/CauchyCoordinates";
-	import { SVG } from "@svgdotjs/svg.js";
+	import { parseSVG, shiftInverse } from "$lib/Svg";
 
 	// Canvas 関連の変数
 	let canvas: HTMLCanvasElement;
@@ -21,6 +21,11 @@
 	let cage: BezierSplineCage;
 	let shape: ComplexNumber[][] = [];
 	let cagePolygon: ComplexNumber[] = []; // 作成中のケージを格納する
+	let svg: {
+		d: { command: string; points: ComplexNumber[] }[];
+		fill: string | undefined;
+		stroke: string | undefined;
+	}[] = [];
 
 	// 画面モード
 	let mode = "deform";
@@ -81,28 +86,24 @@
 		resetCanvas();
 		mode = "deform";
 	}
-	function handleFileDrop(event: DragEvent) {
+	async function handleFileDrop(event: DragEvent) {
 		event.preventDefault();
-
-		// ドロップされたファイルを取得
 		const dataTransfer = event.dataTransfer as DataTransfer;
 		const file = dataTransfer.files[0];
-
-		if (file && file.type === "image/svg+xml") {
-			const reader = new FileReader();
-
-			reader.onload = (e: ProgressEvent<FileReader>) => {
-				const reader = e.target as FileReader;
-				const svgContent = reader.result as string;
-				const draw = SVG()
-					.addTo(canvas)
-					.size(canvas.width, canvas.height);
-				draw.svg(svgContent);
-			};
-		} else {
-			alert("SVGファイルをドロップしてください");
-		}
+		const svgRaw = await parseSVG(file);
+		const svgShifted = shiftInverse(svgRaw);
+		svg = svgShifted.map((path) => {
+			const newD = path.d.map(({ command, points }) => {
+				const newPoints = convertToComplexNumber(points);
+				return { command, points: newPoints };
+			});
+			return { d: newD, fill: path.fill, stroke: path.stroke };
+		});
 	}
+	const preventDefaults = (event: DragEvent) => {
+		event.preventDefault();
+		event.stopPropagation();
+	};
 
 	// マウスイベント
 	function onMouseDown(e: MouseEvent) {
@@ -280,6 +281,43 @@
 			}
 		});
 	}
+	function drawSvg() {
+		ctx.save();
+		svg.forEach((path) => {
+			ctx.beginPath();
+			path.d.forEach(({ command, points }) => {
+				if (command == "M") {
+					points.forEach((p) => {
+						ctx.moveTo(p.real, p.imaginary);
+					});
+				} else if (["L", "H", "V"].includes(command)) {
+					points.forEach((p) => {
+						ctx.lineTo(p.real, p.imaginary);
+					});
+				} else if (["C", "S"].includes(command)) {
+					for (let i = 0; i < points.length; i += 3) {
+						ctx.bezierCurveTo(
+							points[i + 0].real,
+							points[i + 0].imaginary,
+							points[i + 1].real,
+							points[i + 1].imaginary,
+							points[i + 2].real,
+							points[i + 2].imaginary,
+						);
+					}
+				}
+			});
+			if (path.fill != undefined) {
+				ctx.fillStyle = path.fill;
+				ctx.fill();
+			}
+			if (path.stroke != undefined) {
+				ctx.strokeStyle = path.stroke;
+				ctx.stroke();
+			}
+		});
+		ctx.restore();
+	}
 	function drawAll() {
 		ctx.beginPath();
 		// draw cage
@@ -296,7 +334,6 @@
 			drawPolygon(path, true);
 		});
 		drawPolygon(cagePolygon, false);
-
 		if (mode == "create") {
 			if (cagePolygon.length > 0) {
 				if (
@@ -318,6 +355,7 @@
 			}
 		}
 		ctx.stroke();
+		drawSvg();
 	}
 	function drawPoint(x: number, y: number, r?: number) {
 		if (r == undefined) r = 5;
@@ -401,6 +439,9 @@
 		on:mouseleave={onMouseLeave}
 		on:wheel={handleWheel}
 		on:drop={handleFileDrop}
+		on:dragover={preventDefaults}
+		on:dragenter={preventDefaults}
+		on:dragleave={preventDefaults}
 	></canvas>
 	<div class="overlay-text-left">
 		{#each options as { value, label }}

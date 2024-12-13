@@ -73,3 +73,9 @@ export class ComplexNumber {
         return new ComplexNumber(real, imaginary);
     }
 }
+
+export function convertToComplexNumber(points: { x: number, y: number }[]) {
+    return points.map((p) => {
+        return new ComplexNumber(p.x, p.y)
+    })
+}
