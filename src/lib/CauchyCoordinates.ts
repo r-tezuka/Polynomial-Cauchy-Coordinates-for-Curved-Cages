@@ -1,5 +1,5 @@
 import { ComplexNumber } from "$lib/ComplexNumber"
-import { add, matrix, lusolve, complex, inv, multiply, transpose } from 'mathjs';
+import { add, matrix, lusolve, complex, inv, multiply, transpose, zeros } from 'mathjs';
 import type { Complex, Matrix, MathType } from 'mathjs'
 export class BezierSplineCage {
     points: ComplexNumber[] // コントロールポイントの座標
@@ -116,9 +116,9 @@ export class BezierSplineCage {
         const dstZs = this.dstZs.map((z) => {
             return complex(z.real, z.imaginary)
         })
-        let Cp2pSum: MathType = initSquareMatrix(this.curves.length)
-        let C2Sum: MathType = initSquareMatrix(this.curves.length)
-        let b: MathType = []
+        let Cp2pSum: MathType = initSquareMatrix(Cp2p[0].length)
+        let C2Sum: MathType = initSquareMatrix(C2[0].length)
+        let b: MathType = zeros(1, Cp2p[0].length)
         dstZs.forEach((dstZ, i) => {
             const Cp2pi = Cp2p[i]
             const Cp2pTi = transpose(Cp2p[i])
@@ -217,13 +217,14 @@ function factorial(n: number): number {
 
 function convertCoeffs(coeffs: ComplexNumber[][][]): Complex[][][] {
     return coeffs.map((cz) => {
-        const cjs = cz.map((cj) => {
-            const ps = cj.map((p) => {
-                return complex(p.real, p.imaginary)
+        let result: Complex[][] = []
+        result.push([])
+        cz.forEach((cj) => {
+            cj.forEach((p) => {
+                result[0].push(complex(p.real, p.imaginary))
             })
-            return ps
         })
-        return cjs
+        return result
     })
 }
 
