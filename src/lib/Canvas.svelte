@@ -1,9 +1,16 @@
 <script lang="ts">
 	import { onMount } from "svelte";
+	import { getNearestPointId } from "$lib/Util";
 	import { BezierSplineCage } from "$lib/CauchyCoordinates";
 	import { parseSVG, shiftInverse } from "$lib/Svg";
 	import type { Complex } from "mathjs";
-	import { complex, add, subtract, multiply } from "mathjs";
+	import { complex } from "mathjs";
+	import { Shape } from "$lib/Shape";
+	import {
+		createCage,
+		createDefaultCage,
+		createDefaultContent,
+	} from "$lib/SampleObject";
 
 	// Canvas 関連の変数
 	let canvas: HTMLCanvasElement;
@@ -17,15 +24,6 @@
 	const MAX_SCALE = 5;
 	const MIN_SCALE = 0.3;
 	const NEAREST_THRESHOLD = 20; // 最近傍点の検出閾値
-
-	class Shape {
-		points: Complex[] = [];
-		paths: {
-			segments: { command: string; ids: number[] }[];
-			fill: string | undefined;
-			stroke: string | undefined;
-		}[] = [];
-	}
 
 	// Cage 関連
 	let cage: BezierSplineCage;
@@ -204,24 +202,13 @@
 					// console.log(shape[0]);
 				}
 			} else {
-				pActive = getNearestPointId(cage.points, NEAREST_THRESHOLD);
+				pActive = getNearestPointId(
+					cage.points,
+					posInCanvas,
+					NEAREST_THRESHOLD,
+				);
 			}
 		}
-	}
-	function getNearestPointId(points: Complex[], threshold: number) {
-		let result = -1;
-		let distMin = Infinity;
-		points.forEach((p, i) => {
-			const dist = Math.sqrt(
-				(p.re - posInCanvas.x) * (p.re - posInCanvas.x) +
-					(p.im - posInCanvas.y) * (p.im - posInCanvas.y),
-			);
-			if (dist < distMin && dist < threshold) {
-				result = i;
-				distMin = dist;
-			}
-		});
-		return result;
 	}
 	function onMouseUp(e: MouseEvent) {
 		isDragging = false;
@@ -402,78 +389,6 @@
 	function drawPoint(x: number, y: number, r?: number) {
 		if (r == undefined) r = 5;
 		ctx.fillRect(x - r / 2, y - r / 2, r, r);
-	}
-
-	// オブジェクトの生成
-	function createCage(points: Complex[]) {
-		let cagePoints: Complex[] = [];
-		let curves: number[][] = [];
-		points.forEach((start, i) => {
-			const end = points[(i + 1) % points.length];
-			const vec = subtract(end, start);
-			const startHandle = add(multiply(vec, 0.3), start) as Complex;
-			const endHandle = add(multiply(vec, 0.7), start) as Complex;
-			const j = cagePoints.length;
-			const endPointId = i == points.length - 1 ? 0 : j + 3;
-			curves.push([j, j + 1, j + 2, endPointId]);
-			cagePoints.push(start, startHandle, endHandle);
-		});
-		return new BezierSplineCage(cagePoints, curves);
-	}
-	function createDefaultCage() {
-		// init cage
-		const cagePoints = [
-			complex(-200, -200),
-			complex(-100, -200),
-			complex(100, -200),
-			complex(200, -200),
-			complex(200, -100),
-			complex(200, 100),
-			complex(200, 200),
-			complex(100, 200),
-			complex(-100, 200),
-			complex(-200, 200),
-			complex(-200, 100),
-			complex(-200, -100),
-		];
-		const curves = [
-			[0, 1, 2, 3],
-			[3, 4, 5, 6],
-			[6, 7, 8, 9],
-			[9, 10, 11, 0],
-		];
-		return new BezierSplineCage(cagePoints, curves);
-	}
-	function createDefaultContent() {
-		let result = new Shape();
-		let star: Complex[] = [];
-		const spikes = 5;
-		const outerRadius = 100;
-		const innerRadius = 30;
-		const [cx, cy] = [0, 0];
-		const step = Math.PI / spikes;
-		let ids: number[] = [];
-		for (let i = 0; i < 2 * spikes; i++) {
-			const angle = i * step;
-			const radius = i % 2 === 0 ? outerRadius : innerRadius;
-			const x = cx + Math.cos(angle) * radius;
-			const y = cy + Math.sin(angle) * radius;
-			star.push(complex(x, y));
-			ids.push(i);
-		}
-		ids.push(0); //ループを閉じる
-		result.points = star;
-		result.paths = [
-			{
-				segments: [
-					{ command: "M", ids: [0] },
-					{ command: "L", ids: ids },
-				],
-				fill: undefined,
-				stroke: "black",
-			},
-		];
-		return result;
 	}
 
 	// モード一覧
