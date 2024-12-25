@@ -3,7 +3,7 @@
 	import { ComplexNumber, convertToComplexNumber } from "$lib/ComplexNumber";
 	import { BezierSplineCage } from "$lib/CauchyCoordinates";
 	import { parseSVG, shiftInverse } from "$lib/Svg";
-	import { resolveRoute } from "$app/paths";
+	import { mathjsExample, p2pExample } from "$lib/Matrix";
 
 	// Canvas 関連の変数
 	let canvas: HTMLCanvasElement;
@@ -51,6 +51,8 @@
 		// init canvas
 		handleResize();
 		resetCanvas();
+		mathjsExample();
+		p2pExample(cage);
 	});
 
 	// ウインドウのリサイズ

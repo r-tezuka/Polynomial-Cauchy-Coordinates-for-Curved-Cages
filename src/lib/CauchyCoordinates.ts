@@ -1,9 +1,12 @@
 import { ComplexNumber } from "$lib/ComplexNumber"
-
+import { add, matrix, lusolve, complex, inv, multiply, transpose } from 'mathjs';
+import type { Complex, Matrix, MathType } from 'mathjs'
 export class BezierSplineCage {
     points: ComplexNumber[] // コントロールポイントの座標
     curves: number[][] // カーブごとのコントロールポイントのID
-    coeffs: ComplexNumber[][][] = []; //コーシー変換係数
+    coeffs: ComplexNumber[][][] = [] //コーシー変換係数
+    srcZs: ComplexNumber[] = [] // p2p 用のsrc
+    dstZs: ComplexNumber[] = [] // p2p 用のdst
     constructor(points: ComplexNumber[], curves: number[][]) {
         this.points = points
         this.curves = curves
@@ -45,8 +48,9 @@ export class BezierSplineCage {
         })
         return result
     }
-    setCoeffs(points: ComplexNumber[]) {
+    getCoeffs(points: ComplexNumber[]) {
         let result: ComplexNumber[][][] = []
+        const i2Pi = new ComplexNumber(0, 2 * Math.PI)
         points.forEach((z, i) => {
             result.push([])
             this.curves.forEach((controlPoints, j) => {
@@ -56,11 +60,14 @@ export class BezierSplineCage {
                 const edge: [ComplexNumber, ComplexNumber] = [this.points[edgeStart], this.points[edgeEnd]]
                 for (let m: number = 0; m <= degree; m++) {
                     const c = integral(z, edge, m, degree)
-                    result[i][j].push(c.div(new ComplexNumber(0, 2 * Math.PI)))
+                    result[i][j].push(c.div(i2Pi))
                 }
             })
         })
-        this.coeffs = result
+        return result
+    }
+    setCoeffs(points: ComplexNumber[]) {
+        this.coeffs = this.getCoeffs(points)
     }
     cauchyCoordinates() {
         let result: ComplexNumber[] = []
@@ -81,27 +88,103 @@ export class BezierSplineCage {
         })
         return result
     }
+    getCoeffDerivative(points: ComplexNumber[], n: number) {
+        let result: ComplexNumber[][][] = []
+        points.forEach((z, i) => {
+            result.push([])
+            this.curves.forEach((controlPoints, j) => {
+                result[i].push([])
+                const degree = controlPoints.length - 1
+                const [edgeStart, edgeEnd] = [controlPoints[0], controlPoints[degree]]
+                const edge: [ComplexNumber, ComplexNumber] = [this.points[edgeStart], this.points[edgeEnd]]
+                for (let m: number = 0; m <= degree; m++) {
+                    const c = derivative(z, edge, m, degree, n)
+                    result[i][j].push(c)
+                }
+            })
+        })
+        return result
+    }
+    p2pDeformation() {
+        // initialize
+        const lambda = 1
+        const Cp2pRaw = this.getCoeffs(this.srcZs)
+        const C2Raw = this.getCoeffDerivative(this.srcZs, 2)
+        // convert ComplexNumber to {re, im}
+        const Cp2p = convertCoeffs(Cp2pRaw)
+        const C2 = convertCoeffs(C2Raw)
+        const dstZs = this.dstZs.map((z) => {
+            return complex(z.real, z.imaginary)
+        })
+        let Cp2pSum: MathType = initSquareMatrix(this.curves.length)
+        let C2Sum: MathType = initSquareMatrix(this.curves.length)
+        let b: MathType = []
+        dstZs.forEach((dstZ, i) => {
+            const Cp2pi = Cp2p[i]
+            const Cp2pTi = transpose(Cp2p[i])
+            const C2i = C2[i]
+            const C2Ti = transpose(C2[i])
+            const Cp2pDot = multiply(Cp2pTi, Cp2pi)
+            Cp2pSum = add(Cp2pSum, Cp2pDot)
+            const C2Dot = multiply(C2Ti, C2i)
+            C2Sum = add(C2Sum, C2Dot)
+            const bDot = multiply(Cp2pTi, dstZ)
+            b = add(b, bDot)
+        })
+        const A = add(Cp2pSum, multiply(C2Sum, lambda))
+        const A_inv = inv(A);
+        const x = multiply(A_inv, b);
+        return x
+    }
 }
 
-function integral(z: ComplexNumber, edge: [ComplexNumber, ComplexNumber], m: number, n: number) {
+function integral(z: ComplexNumber, edge: [ComplexNumber, ComplexNumber], m: number, N: number) {
     let result = new ComplexNumber(0, 0)
     const b = edge[1].sub(z)
     const bPrev = edge[0].sub(z)
     for (let k: number = 0; k <= m; k++) {
-        for (let l: number = 0; l <= n - m; l++) {
-            if (n - m - l + k == 0) continue   //0除算はスキップ
+        for (let l: number = 0; l <= N - m; l++) {
+            if (N - m - l + k == 0) continue   //0除算はスキップ
             const mk = binomialCoefficient(m, k)
-            const nml = binomialCoefficient(n - m, l)
-            const factorNum = mk * nml * Math.pow(-1, n - k - l) / (n - m - l + k)
-            const factorCompNum = b.pow(n - m + k).mul(bPrev.pow(m - k)).sub(b.pow(l).mul(bPrev.pow(n - l)))
+            const nml = binomialCoefficient(N - m, l)
+            const factorNum = mk * nml * Math.pow(-1, N - k - l) / (N - m - l + k)
+            const factorCompNum = b.pow(N - m + k).mul(bPrev.pow(m - k)).sub(b.pow(l).mul(bPrev.pow(N - l)))
             result = result.add(factorCompNum.mul(factorNum))
         }
     }
-    result = result.add(bPrev.mul(-1).pow(m).mul(b.pow(n - m)).mul(b.div(bPrev).log()))
+    result = result.add(bPrev.mul(-1).pow(m).mul(b.pow(N - m)).mul(b.div(bPrev).log()))
     const a = edge[1].sub(edge[0])
-    const nm = binomialCoefficient(n, m)
+    const nm = binomialCoefficient(N, m)
     result = result.mul(nm)
-    result = result.div(a.pow(n))
+    result = result.div(a.pow(N))
+    return result
+}
+
+function derivative(z: ComplexNumber, edge: [ComplexNumber, ComplexNumber], m: number, N: number, n: number) {
+    let result = new ComplexNumber(0, 0)
+    const a = edge[1].sub(edge[0])
+    const b = edge[1].sub(z)
+    const bPrev = edge[0].sub(z)
+    const nFactorial = factorial(n)
+    const i2Pi = new ComplexNumber(0, Math.PI * 2)
+    for (let k = 0; k < m; k++) {
+        for (let l = 0; l < N - m; l++) {
+            const mk = binomialCoefficient(m, k)
+            const nml = binomialCoefficient(N - m, l)
+            let factorNum = mk * nml * Math.pow(-1, N - k - l)
+            let factorCompNum: ComplexNumber
+            if (N - m - l + k == n) {
+                factorCompNum = b.pow(l).mul(bPrev.pow(m - k)).mul(b.div(bPrev).log())
+            } else {
+                factorNum /= N - m - l + k - n
+                factorCompNum = b.pow(N - m + k - n).mul(bPrev.pow(m - k)).sub(b.pow(l).mul(bPrev.pow(N - l - n)))
+                result = result.add(factorCompNum.mul(factorNum))
+            }
+            result = result.add(factorCompNum.mul(factorNum))
+        }
+        const nm = binomialCoefficient(N, m)
+        result = result.mul(a.pow(N).div(i2Pi).mul(nm * nFactorial))
+    }
     return result
 }
 
@@ -130,4 +213,24 @@ function factorial(n: number): number {
         return 1
     }
     return n * factorial(n - 1)
+}
+
+function convertCoeffs(coeffs: ComplexNumber[][][]): Complex[][][] {
+    return coeffs.map((cz) => {
+        const cjs = cz.map((cj) => {
+            const ps = cj.map((p) => {
+                return complex(p.real, p.imaginary)
+            })
+            return ps
+        })
+        return cjs
+    })
+}
+
+function initSquareMatrix(n: number): Matrix {
+    return matrix(
+        Array.from({ length: n }, () =>
+            Array.from({ length: n }, () => complex(0, 0))
+        )
+    )
 }
