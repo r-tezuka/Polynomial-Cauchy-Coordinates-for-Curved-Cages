@@ -1,10 +1,9 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-	import { ComplexNumber, convertToComplexNumber } from "$lib/ComplexNumber";
 	import { BezierSplineCage } from "$lib/CauchyCoordinates";
 	import { parseSVG, shiftInverse } from "$lib/Svg";
-	import { mathjsExample, p2pExample } from "$lib/Matrix";
-	import { ComplexDependencies } from "mathjs";
+	import type { Complex } from "mathjs";
+	import { complex, add, subtract, multiply } from "mathjs";
 
 	// Canvas 関連の変数
 	let canvas: HTMLCanvasElement;
@@ -20,7 +19,7 @@
 	const NEAREST_THRESHOLD = 20; // 最近傍点の検出閾値
 
 	class Shape {
-		points: ComplexNumber[] = [];
+		points: Complex[] = [];
 		paths: {
 			segments: { command: string; ids: number[] }[];
 			fill: string | undefined;
@@ -31,7 +30,7 @@
 	// Cage 関連
 	let cage: BezierSplineCage;
 	let shape: Shape = new Shape();
-	let cagePolygon: ComplexNumber[] = []; // 作成中のケージを格納する
+	let cagePolygon: Complex[] = []; // 作成中のケージを格納する
 
 	// 画面モード
 	let mode = "deform";
@@ -52,8 +51,6 @@
 		// init canvas
 		handleResize();
 		resetCanvas();
-		mathjsExample();
-		p2pExample(cage);
 	});
 
 	// ウインドウのリサイズ
@@ -106,7 +103,7 @@
 			const iCurve = Math.trunc(i / 4);
 			const iCp = i % 4;
 			const iPoint = cage.curves[iCurve][iCp];
-			cage.points[iPoint] = new ComplexNumber(pHandle.re, pHandle.im);
+			cage.points[iPoint] = complex(pHandle.re, pHandle.im);
 			i++;
 		});
 	}
@@ -117,15 +114,14 @@
 		const file = dataTransfer.files[0];
 		const svgRaw = await parseSVG(file);
 		const svgShifted = shiftInverse(svgRaw);
-		let svgPoints: ComplexNumber[] = [];
+		let svgPoints: Complex[] = [];
 		shape = new Shape();
 		svgShifted.forEach((path) => {
 			const segments = path.d.map(({ command, points }) => {
-				const newPoints = convertToComplexNumber(points);
 				let id = svgPoints.length;
 				let ids: number[] = [];
-				newPoints.forEach((p, i) => {
-					svgPoints.push(p);
+				points.forEach((p, i) => {
+					svgPoints.push(complex(p.x, p.y));
 					ids.push(id + i);
 				});
 				return { command, ids };
@@ -152,17 +148,16 @@
 		} else if (mode == "deform") {
 			if (pActive != -1) {
 				mousePointDiff = {
-					x: posInCanvas.x - cage.points[pActive].real,
-					y: posInCanvas.y - cage.points[pActive].imaginary,
+					x: posInCanvas.x - cage.points[pActive].re,
+					y: posInCanvas.y - cage.points[pActive].im,
 				};
 			}
 		} else if (mode == "create") {
 			if (
 				cagePolygon.length > 0 &&
-				Math.abs(cagePolygon[0].real - posInCanvas.x) <
+				Math.abs(cagePolygon[0].re - posInCanvas.x) <
 					NEAREST_THRESHOLD &&
-				Math.abs(cagePolygon[0].imaginary - posInCanvas.y) <
-					NEAREST_THRESHOLD
+				Math.abs(cagePolygon[0].im - posInCanvas.y) < NEAREST_THRESHOLD
 			) {
 				cage = createCage(cagePolygon);
 				cagePolygon = [];
@@ -170,11 +165,11 @@
 			} else {
 				cagePolygon = [
 					...cagePolygon,
-					new ComplexNumber(posInCanvas.x, posInCanvas.y),
+					complex(posInCanvas.x, posInCanvas.y),
 				];
 			}
 		} else if (mode == "p2p") {
-			const p = new ComplexNumber(posInCanvas.x, posInCanvas.y);
+			const p = complex(posInCanvas.x, posInCanvas.y);
 			if (cage.srcZs.length == cage.dstZs.length) {
 				cage.srcZs = [...cage.srcZs, p];
 			} else {
@@ -199,10 +194,8 @@
 			if (isDragging) {
 				if (pActive != -1) {
 					// console.log(shape[0]);
-					cage.points[pActive].real =
-						posInCanvas.x - mousePointDiff.x;
-					cage.points[pActive].imaginary =
-						posInCanvas.y - mousePointDiff.y;
+					cage.points[pActive].re = posInCanvas.x - mousePointDiff.x;
+					cage.points[pActive].im = posInCanvas.y - mousePointDiff.y;
 					cage = cage;
 					if (mode == "deform") {
 						// シェイプを変形する
@@ -215,14 +208,13 @@
 			}
 		}
 	}
-	function getNearestPointId(points: ComplexNumber[], threshold: number) {
+	function getNearestPointId(points: Complex[], threshold: number) {
 		let result = -1;
 		let distMin = Infinity;
 		points.forEach((p, i) => {
 			const dist = Math.sqrt(
-				(p.real - posInCanvas.x) * (p.real - posInCanvas.x) +
-					(p.imaginary - posInCanvas.y) *
-						(p.imaginary - posInCanvas.y),
+				(p.re - posInCanvas.x) * (p.re - posInCanvas.x) +
+					(p.im - posInCanvas.y) * (p.im - posInCanvas.y),
 			);
 			if (dist < distMin && dist < threshold) {
 				result = i;
@@ -305,24 +297,24 @@
 		offset = { x: -centerX, y: centerY };
 		lastOffset = { ...offset };
 	}
-	function drawPolygon(points: ComplexNumber[], isLoop: boolean) {
+	function drawPolygon(points: Complex[], isLoop: boolean) {
 		// draw polygon
 		points.forEach((start, i) => {
 			const end = points[(i + 1) % points.length];
 			if (!isLoop && i == points.length - 1) return;
-			ctx.moveTo(start.real, start.imaginary);
-			ctx.lineTo(end.real, end.imaginary);
+			ctx.moveTo(start.re, start.im);
+			ctx.lineTo(end.re, end.im);
 		});
 	}
 	function drawHandles(bSpline: BezierSplineCage, pActive: number) {
 		bSpline.points.forEach((p, i) => {
 			const next = bSpline.points[(i + 1) % bSpline.points.length];
-			ctx.moveTo(p.real, p.imaginary);
-			ctx.lineTo(next.real, next.imaginary);
+			ctx.moveTo(p.re, p.im);
+			ctx.lineTo(next.re, next.im);
 			if (i == pActive) {
-				drawPoint(p.real, p.imaginary, 10);
+				drawPoint(p.re, p.im, 10);
 			} else {
-				drawPoint(p.real, p.imaginary);
+				drawPoint(p.re, p.im);
 			}
 		});
 	}
@@ -336,21 +328,21 @@
 				});
 				if (command == "M") {
 					points.forEach((p) => {
-						ctx.moveTo(p.real, p.imaginary);
+						ctx.moveTo(p.re, p.im);
 					});
 				} else if (["L", "H", "V"].includes(command)) {
 					points.forEach((p) => {
-						ctx.lineTo(p.real, p.imaginary);
+						ctx.lineTo(p.re, p.im);
 					});
 				} else if (["C", "S"].includes(command)) {
 					for (let i = 0; i < points.length; i += 3) {
 						ctx.bezierCurveTo(
-							points[i + 0].real,
-							points[i + 0].imaginary,
-							points[i + 1].real,
-							points[i + 1].imaginary,
-							points[i + 2].real,
-							points[i + 2].imaginary,
+							points[i + 0].re,
+							points[i + 0].im,
+							points[i + 1].re,
+							points[i + 1].im,
+							points[i + 2].re,
+							points[i + 2].im,
 						);
 					}
 				}
@@ -384,30 +376,26 @@
 			if (cagePolygon.length > 0) {
 				if (
 					cagePolygon.length > 1 &&
-					Math.abs(cagePolygon[0].real - posInCanvas.x) <
+					Math.abs(cagePolygon[0].re - posInCanvas.x) <
 						NEAREST_THRESHOLD &&
-					Math.abs(cagePolygon[0].imaginary - posInCanvas.y) <
+					Math.abs(cagePolygon[0].im - posInCanvas.y) <
 						NEAREST_THRESHOLD
 				) {
-					drawPoint(
-						cagePolygon[0].real,
-						cagePolygon[0].imaginary,
-						10,
-					);
+					drawPoint(cagePolygon[0].re, cagePolygon[0].im, 10);
 				}
 				const last = cagePolygon[cagePolygon.length - 1];
-				ctx.moveTo(last.real, last.imaginary);
+				ctx.moveTo(last.re, last.im);
 				ctx.lineTo(posInCanvas.x, posInCanvas.y);
 			}
 		}
 		ctx.stroke();
 		ctx.fillStyle = "red";
 		cage.srcZs.forEach((p) => {
-			drawPoint(p.real, p.imaginary, 10);
+			drawPoint(p.re, p.im, 10);
 		});
 		ctx.fillStyle = "blue";
 		cage.dstZs.forEach((p) => {
-			drawPoint(p.real, p.imaginary, 10);
+			drawPoint(p.re, p.im, 10);
 		});
 		ctx.fillStyle = "";
 	}
@@ -417,14 +405,14 @@
 	}
 
 	// オブジェクトの生成
-	function createCage(points: ComplexNumber[]) {
-		let cagePoints: ComplexNumber[] = [];
+	function createCage(points: Complex[]) {
+		let cagePoints: Complex[] = [];
 		let curves: number[][] = [];
 		points.forEach((start, i) => {
 			const end = points[(i + 1) % points.length];
-			const vec = end.sub(start);
-			const startHandle = vec.mul(0.3).add(start);
-			const endHandle = vec.mul(0.7).add(start);
+			const vec = subtract(end, start);
+			const startHandle = add(multiply(vec, 0.3), start) as Complex;
+			const endHandle = add(multiply(vec, 0.7), start) as Complex;
 			const j = cagePoints.length;
 			const endPointId = i == points.length - 1 ? 0 : j + 3;
 			curves.push([j, j + 1, j + 2, endPointId]);
@@ -435,18 +423,18 @@
 	function createDefaultCage() {
 		// init cage
 		const cagePoints = [
-			new ComplexNumber(-200, -200),
-			new ComplexNumber(-100, -200),
-			new ComplexNumber(100, -200),
-			new ComplexNumber(200, -200),
-			new ComplexNumber(200, -100),
-			new ComplexNumber(200, 100),
-			new ComplexNumber(200, 200),
-			new ComplexNumber(100, 200),
-			new ComplexNumber(-100, 200),
-			new ComplexNumber(-200, 200),
-			new ComplexNumber(-200, 100),
-			new ComplexNumber(-200, -100),
+			complex(-200, -200),
+			complex(-100, -200),
+			complex(100, -200),
+			complex(200, -200),
+			complex(200, -100),
+			complex(200, 100),
+			complex(200, 200),
+			complex(100, 200),
+			complex(-100, 200),
+			complex(-200, 200),
+			complex(-200, 100),
+			complex(-200, -100),
 		];
 		const curves = [
 			[0, 1, 2, 3],
@@ -458,7 +446,7 @@
 	}
 	function createDefaultContent() {
 		let result = new Shape();
-		let star: ComplexNumber[] = [];
+		let star: Complex[] = [];
 		const spikes = 5;
 		const outerRadius = 100;
 		const innerRadius = 30;
@@ -470,7 +458,7 @@
 			const radius = i % 2 === 0 ? outerRadius : innerRadius;
 			const x = cx + Math.cos(angle) * radius;
 			const y = cy + Math.sin(angle) * radius;
-			star.push(new ComplexNumber(x, y));
+			star.push(complex(x, y));
 			ids.push(i);
 		}
 		ids.push(0); //ループを閉じる
