@@ -4,6 +4,7 @@
 	import { BezierSplineCage } from "$lib/CauchyCoordinates";
 	import { parseSVG, shiftInverse } from "$lib/Svg";
 	import { mathjsExample, p2pExample } from "$lib/Matrix";
+	import { ComplexDependencies } from "mathjs";
 
 	// Canvas 関連の変数
 	let canvas: HTMLCanvasElement;
@@ -84,6 +85,10 @@
 			cage.setCoeffs(shape.points);
 			shape.points = cage.cauchyCoordinates();
 		}
+		if (input.value == "p2p") {
+			cage.setCoeffs(shape.points);
+			shape.points = cage.cauchyCoordinates();
+		}
 	}
 	function handleReset() {
 		cage = createDefaultCage();
@@ -94,6 +99,18 @@
 		resetCanvas();
 		mode = "deform";
 	}
+	function handleP2P() {
+		const x = cage.p2pDeformation();
+		let i = 0;
+		x.forEach((pHandle) => {
+			const iCurve = Math.trunc(i / 4);
+			const iCp = i % 4;
+			const iPoint = cage.curves[iCurve][iCp];
+			cage.points[iPoint] = new ComplexNumber(pHandle.re, pHandle.im);
+			i++;
+		});
+	}
+
 	async function handleFileDrop(event: DragEvent) {
 		event.preventDefault();
 		const dataTransfer = event.dataTransfer as DataTransfer;
@@ -126,7 +143,6 @@
 		event.preventDefault();
 		event.stopPropagation();
 	};
-
 	// マウスイベント
 	function onMouseDown(e: MouseEvent) {
 		isDragging = true;
@@ -156,6 +172,13 @@
 					...cagePolygon,
 					new ComplexNumber(posInCanvas.x, posInCanvas.y),
 				];
+			}
+		} else if (mode == "p2p") {
+			const p = new ComplexNumber(posInCanvas.x, posInCanvas.y);
+			if (cage.srcZs.length == cage.dstZs.length) {
+				cage.srcZs = [...cage.srcZs, p];
+			} else {
+				cage.dstZs = [...cage.dstZs, p];
 			}
 		}
 	}
@@ -378,6 +401,15 @@
 			}
 		}
 		ctx.stroke();
+		ctx.fillStyle = "red";
+		cage.srcZs.forEach((p) => {
+			drawPoint(p.real, p.imaginary, 10);
+		});
+		ctx.fillStyle = "blue";
+		cage.dstZs.forEach((p) => {
+			drawPoint(p.real, p.imaginary, 10);
+		});
+		ctx.fillStyle = "";
 	}
 	function drawPoint(x: number, y: number, r?: number) {
 		if (r == undefined) r = 5;
@@ -462,6 +494,7 @@
 		{ value: "create", label: "Create cage" },
 		{ value: "edit", label: "Edit cage" },
 		{ value: "deform", label: "Deform shape" },
+		{ value: "p2p", label: "P2P Deformation" },
 	];
 </script>
 
@@ -495,6 +528,11 @@
 		{/each}
 		<br />
 		<button on:click={handleReset}>Reset cage & shape</button>
+		{#if mode == "p2p"}
+			<br />
+			<br />
+			<button on:click={handleP2P}>Deform</button>
+		{/if}
 	</div>
 	<div class="overlay-text-right">
 		X: {posInCanvas.x.toPrecision(3)}
