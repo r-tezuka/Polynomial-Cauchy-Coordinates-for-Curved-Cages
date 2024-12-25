@@ -59,6 +59,7 @@ export class BezierSplineCage {
                 const edge: [Complex, Complex] = [this.points[edgeStart], this.points[edgeEnd]]
                 for (let m: number = 0; m <= degree; m++) {
                     const c = integral(z, edge, m, degree)
+                    console.log(c)
                     result[i][j].push(divide(c, i2Pi) as Complex)
                 }
             })
@@ -151,7 +152,7 @@ function integral(z: Complex, edge: [Complex, Complex], m: number, N: number) {
             result = add(result, multiply(factorCompNum, factorNum)) as Complex
         }
     }
-    result = add(result, multiply(multiply(multiply(bPrev, pow(-1, m)), pow(b, N - m)), log(divide(b, bPrev) as Complex))) as Complex
+    result = add(result, multiply(multiply(pow(-bPrev, m), pow(b, N - m)), log(divide(b, bPrev) as Complex))) as Complex
     const a = subtract(edge[1], (edge[0]))
     const nm = binomialCoefficient(N, m)
     result = multiply(result, nm) as Complex
