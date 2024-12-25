@@ -152,7 +152,7 @@ function integral(z: Complex, edge: [Complex, Complex], m: number, N: number) {
             result = add(result, multiply(factorCompNum, factorNum)) as Complex
         }
     }
-    result = add(result, multiply(multiply(pow(-bPrev, m), pow(b, N - m)), log(divide(b, bPrev) as Complex))) as Complex
+    result = add(result, multiply(multiply(pow(multiply(bPrev, -1), m), pow(b, N - m)), log(divide(b, bPrev) as Complex))) as Complex
     const a = subtract(edge[1], (edge[0]))
     const nm = binomialCoefficient(N, m)
     result = multiply(result, nm) as Complex
