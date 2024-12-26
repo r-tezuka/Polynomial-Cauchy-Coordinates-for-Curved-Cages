@@ -1,4 +1,4 @@
-import { add, complex, inv, multiply, transpose, zeros, subtract, pow, divide, log } from 'mathjs';
+import { add, complex, inv, multiply, transpose, zeros, subtract, pow, divide, log, lusolve } from 'mathjs';
 import type { Complex, Matrix } from 'mathjs'
 export class BezierSplineCage {
     points: Complex[] // コントロールポイントの座標
@@ -59,7 +59,6 @@ export class BezierSplineCage {
                 const edge: [Complex, Complex] = [this.points[edgeStart], this.points[edgeEnd]]
                 for (let m: number = 0; m <= degree; m++) {
                     const c = integral(z, edge, m, degree)
-                    console.log(c)
                     result[i][j].push(divide(c, i2Pi) as Complex)
                 }
             })
@@ -110,31 +109,30 @@ export class BezierSplineCage {
         const lambda = 1
         const Cp2pRaw = this.getCoeffs(this.srcZs)
         const C2Raw = this.getCoeffDerivative(this.srcZs, 2)
-        // convert Complex to {re, im}
         const Cp2p = convertCoeffs(Cp2pRaw)
         const C2 = convertCoeffs(C2Raw)
-        const dstZs = this.dstZs.map((z) => {
-            return complex(z.re, z.im)
-        })
-        let Cp2pSum: Matrix = initSquareMatrix(Cp2p[0].length)
-        let C2Sum: Matrix = initSquareMatrix(C2[0].length)
+        const np2p = Cp2p[0].length
+        const n2 = C2[0].length
+        let Cp2pSum: Matrix = zeros(np2p, np2p) as Matrix
+        let C2Sum: Matrix = zeros(n2, n2) as Matrix
         let b: Matrix = zeros(1, Cp2p[0].length) as Matrix
-        dstZs.forEach((dstZ, i) => {
+        this.dstZs.forEach((dstZ, i) => {
             const Cp2pi = Cp2p[i]
             const Cp2pTi = transpose(Cp2p[i])
-            const C2i = C2[i]
-            const C2Ti = transpose(C2[i])
             const Cp2pDot = multiply(Cp2pTi, Cp2pi)
             Cp2pSum = add(Cp2pSum, Cp2pDot) as Matrix
+            const C2i = C2[i]
+            const C2Ti = transpose(C2[i])
             const C2Dot = multiply(C2Ti, C2i)
             C2Sum = add(C2Sum, C2Dot) as Matrix
             const bDot = multiply(Cp2pTi, dstZ)
             b = add(b, bDot) as Matrix
         })
         const A = add(Cp2pSum, multiply(C2Sum, lambda))
-        const A_inv = inv(A);
-        const x = multiply(A_inv, b);
-        return x
+        return lusolve(A, b)
+        // const invA = inv(A);
+        // const x = multiply(invA, b);
+        // return x
     }
 }
 
@@ -226,13 +224,4 @@ function convertCoeffs(coeffs: Complex[][][]): Complex[][][] {
         })
         return result
     })
-}
-
-function initSquareMatrix(n: number): Matrix {
-    return zeros(n, n) as Matrix
-    // return matrix(
-    //     Array.from({ length: n }, () =>
-    //         Array.from({ length: n }, () => complex(0, 0))
-    //     )
-    // )
 }
