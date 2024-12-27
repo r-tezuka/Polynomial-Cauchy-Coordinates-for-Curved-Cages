@@ -3,7 +3,7 @@ import type { Complex, Matrix } from 'mathjs'
 export class BezierSplineCage {
     points: Complex[] // コントロールポイントの座標
     curves: number[][] // カーブごとのコントロールポイントのID
-    coeffs: Complex[][][] = [] //コーシー変換係数
+    coeffs: Complex[][] = [] //コーシー変換係数
     srcZs: Complex[] = [] // p2p 用のsrc
     dstZs: Complex[] = [] // p2p 用のdst
     constructor(points: Complex[], curves: number[][]) {
@@ -48,18 +48,25 @@ export class BezierSplineCage {
         return result
     }
     getCoeffs(points: Complex[]) {
-        let result: Complex[][][] = []
+        let result: Complex[][] = []
         const i2Pi = complex(0, 2 * Math.PI)
         points.forEach((z, i) => {
             result.push([])
-            this.curves.forEach((controlPoints, j) => {
-                result[i].push([])
+            this.curves.forEach((controlPoints) => {
                 const degree = controlPoints.length - 1
                 const [edgeStart, edgeEnd] = [controlPoints[0], controlPoints[degree]]
                 const edge: [Complex, Complex] = [this.points[edgeStart], this.points[edgeEnd]]
                 for (let m: number = 0; m <= degree; m++) {
-                    const c = integral(z, edge, m, degree)
-                    result[i][j].push(divide(c, i2Pi) as Complex)
+                    const c = divide(integral(z, edge, m, degree), i2Pi) as Complex
+                    if (m == degree && edgeEnd == 0) {
+                        result[i][0] = add(result[i][0], c) as Complex
+                    } else {
+                        if (m == 0 && edgeStart != 0) {
+                            result[i][edgeStart] = add(result[i][edgeStart], c) as Complex
+                        } else {
+                            result[i].push(c)
+                        }
+                    }
                 }
             })
         })
@@ -73,32 +80,35 @@ export class BezierSplineCage {
         this.coeffs.forEach((pz) => {
             let real = 0
             let imaginary = 0
-            pz.forEach((ci, i) => {
-                const curve = this.curves[i]
-                ci.forEach((p, j) => {
-                    const pId = curve[j]
-                    const c = this.points[pId]
-                    // newP += p * c
-                    real += p.re * c.re - p.im * c.im;
-                    imaginary += p.re * c.im + p.im * c.re;
-                })
+            pz.forEach((c, i) => {
+                // c * p
+                const p = this.points[i]
+                real += p.re * c.re - p.im * c.im;
+                imaginary += p.re * c.im + p.im * c.re;
             })
             result.push(complex(real, imaginary))
         })
         return result
     }
     getCoeffDerivative(points: Complex[], n: number) {
-        let result: Complex[][][] = []
+        let result: Complex[][] = []
         points.forEach((z, i) => {
             result.push([])
             this.curves.forEach((controlPoints, j) => {
-                result[i].push([])
                 const degree = controlPoints.length - 1
                 const [edgeStart, edgeEnd] = [controlPoints[0], controlPoints[degree]]
                 const edge: [Complex, Complex] = [this.points[edgeStart], this.points[edgeEnd]]
                 for (let m: number = 0; m <= degree; m++) {
                     const c = derivative(z, edge, m, degree, n)
-                    result[i][j].push(c)
+                    if (m == degree && edgeEnd == 0) {
+                        result[i][0] = add(result[i][0], c) as Complex
+                    } else {
+                        if (m == 0 && edgeStart != 0) {
+                            result[i][edgeStart] = add(result[i][edgeStart], c) as Complex
+                        } else {
+                            result[i].push(c)
+                        }
+                    }
                 }
             })
         })
@@ -107,32 +117,33 @@ export class BezierSplineCage {
     p2pDeformation() {
         // initialize
         const lambda = 1
-        const Cp2pRaw = this.getCoeffs(this.srcZs)
-        const C2Raw = this.getCoeffDerivative(this.srcZs, 2)
-        const Cp2p = convertCoeffs(Cp2pRaw)
-        const C2 = convertCoeffs(C2Raw)
-        const np2p = Cp2p[0].length
-        const n2 = C2[0].length
-        let Cp2pSum: Matrix = zeros(np2p, np2p) as Matrix
-        let C2Sum: Matrix = zeros(n2, n2) as Matrix
-        let b: Matrix = zeros(1, Cp2p[0].length) as Matrix
+        const Cp2p = this.getCoeffs(this.srcZs)
+        const C2 = this.getCoeffDerivative(this.srcZs, 2)
+        const l = this.points.length
+        let Cp2pSum = zeros(l, l) as Matrix
+        let C2Sum = zeros(l, l) as Matrix
+        let b = zeros(l, 1) as Matrix
         this.dstZs.forEach((dstZ, i) => {
-            const Cp2pi = Cp2p[i]
-            const Cp2pTi = transpose(Cp2p[i])
+            const Cp2pi = [Cp2p[i]]
+            const Cp2pTi = transpose(Cp2pi)
             const Cp2pDot = multiply(Cp2pTi, Cp2pi)
             Cp2pSum = add(Cp2pSum, Cp2pDot) as Matrix
-            const C2i = C2[i]
-            const C2Ti = transpose(C2[i])
+            const C2i = [C2[i]]
+            const C2Ti = transpose(C2i)
             const C2Dot = multiply(C2Ti, C2i)
             C2Sum = add(C2Sum, C2Dot) as Matrix
-            const bDot = multiply(Cp2pTi, dstZ)
-            b = add(b, bDot) as Matrix
+            const bDot = multiply(Cp2pTi, dstZ) as Matrix
+            b = add(b, bDot)
         })
         const A = add(Cp2pSum, multiply(C2Sum, lambda))
-        return lusolve(A, b)
-        // const invA = inv(A);
-        // const x = multiply(invA, b);
-        // return x
+        const invA = inv(A);
+        const x = multiply(invA, b)
+        // convert Matrix to Complex[]
+        let result: Complex[] = []
+        x.forEach((p) => {
+            result.push(complex(p.re, p.im))
+        })
+        return result
     }
 }
 
@@ -211,17 +222,4 @@ function factorial(n: number): number {
         return 1
     }
     return n * factorial(n - 1)
-}
-
-function convertCoeffs(coeffs: Complex[][][]): Complex[][][] {
-    return coeffs.map((cz) => {
-        let result: Complex[][] = []
-        result.push([])
-        cz.forEach((cj) => {
-            cj.forEach((p) => {
-                result[0].push(complex(p.re, p.im))
-            })
-        })
-        return result
-    })
 }

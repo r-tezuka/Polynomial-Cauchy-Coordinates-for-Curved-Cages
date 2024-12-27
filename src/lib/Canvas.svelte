@@ -95,15 +95,8 @@
 		mode = "deform";
 	}
 	function handleP2P() {
-		const x = cage.p2pDeformation();
-		let i = 0;
-		x.forEach((pHandle) => {
-			const iCurve = Math.trunc(i / 4);
-			const iCp = i % 4;
-			const iPoint = cage.curves[iCurve][iCp];
-			cage.points[iPoint] = complex(pHandle.re, pHandle.im);
-			i++;
-		});
+		cage.points = cage.p2pDeformation();
+		shape.points = cage.cauchyCoordinates();
 	}
 
 	async function handleFileDrop(event: DragEvent) {
@@ -191,7 +184,6 @@
 			// ケージを動かす
 			if (isDragging) {
 				if (pActive != -1) {
-					// console.log(shape[0]);
 					cage.points[pActive].re = posInCanvas.x - mousePointDiff.x;
 					cage.points[pActive].im = posInCanvas.y - mousePointDiff.y;
 					cage = cage;
@@ -199,7 +191,6 @@
 						// シェイプを変形する
 						shape.points = cage.cauchyCoordinates();
 					}
-					// console.log(shape[0]);
 				}
 			} else {
 				pActive = getNearestPointId(
