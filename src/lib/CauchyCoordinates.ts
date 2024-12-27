@@ -9,11 +9,9 @@ export class BezierSplineCage {
     constructor(points: Complex[], curves: number[][]) {
         // 反時計周りに修正
         if (isClockwise(points)) {
-            console.log(points)
             const start = points.shift() as Complex
             points = [...points].reverse();
             points.unshift(start)
-            console.log(points)
         }
         this.points = points
         this.curves = curves
