@@ -7,15 +7,16 @@ export class BezierSplineCage {
     srcZs: Complex[] = [] // p2p 用のsrc
     dstZs: Complex[] = [] // p2p 用のdst
     constructor(points: Complex[], curves: number[][]) {
-        this.points = points
-        this.curves = curves
         // 反時計周りに修正
         if (isClockwise(points)) {
-            curves.reverse()
-            curves.forEach((cps) => {
-                cps.reverse()
-            })
+            console.log(points)
+            const start = points.shift() as Complex
+            points = [...points].reverse();
+            points.unshift(start)
+            console.log(points)
         }
+        this.points = points
+        this.curves = curves
     }
     polygonize() {
         const T = 100 // Bezier の分割数
@@ -141,7 +142,7 @@ export class BezierSplineCage {
         // convert Matrix to Complex[]
         let result: Complex[] = []
         x.forEach((p) => {
-            result.push(complex(p.re, p.im))
+            result.push(p)
         })
         return result
     }
@@ -199,7 +200,7 @@ function derivative(z: Complex, edge: [Complex, Complex], m: number, N: number, 
 
 function isClockwise(points: Complex[]): boolean {
     if (points.length < 3) {
-        return true
+        return false
     }
     let sum = 0;
     for (let i = 0; i < points.length; i++) {
