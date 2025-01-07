@@ -372,10 +372,17 @@
 			drawPoint(p.re, p.im, 10);
 		});
 		ctx.fillStyle = "blue";
-		cage.dstZs.forEach((p) => {
+		ctx.strokeStyle = "lightgray";
+		ctx.beginPath();
+		cage.dstZs.forEach((p, i) => {
 			drawPoint(p.re, p.im, 10);
+			const pSrc = cage.srcZs[i];
+			ctx.moveTo(pSrc.re, pSrc.im);
+			ctx.lineTo(p.re, p.im);
 		});
+		ctx.stroke();
 		ctx.fillStyle = "";
+		ctx.strokeStyle = "black";
 	}
 	function drawPoint(x: number, y: number, r?: number) {
 		if (r == undefined) r = 5;

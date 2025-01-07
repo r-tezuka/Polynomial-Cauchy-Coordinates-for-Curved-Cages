@@ -1,4 +1,4 @@
-import { add, complex, inv, multiply, transpose, zeros, subtract, pow, divide, log, lusolve } from 'mathjs';
+import { add, complex, identity, multiply, transpose, zeros, subtract, pow, divide, log, lusolve } from 'mathjs';
 import type { Complex, Matrix } from 'mathjs'
 export class BezierSplineCage {
     points: Complex[] // コントロールポイントの座標
@@ -75,19 +75,7 @@ export class BezierSplineCage {
         this.coeffs = this.getCoeffs(points)
     }
     cauchyCoordinates() {
-        let result: Complex[] = []
-        this.coeffs.forEach((pz) => {
-            let real = 0
-            let imaginary = 0
-            pz.forEach((c, i) => {
-                // c * p
-                const p = this.points[i]
-                real += p.re * c.re - p.im * c.im;
-                imaginary += p.re * c.im + p.im * c.re;
-            })
-            result.push(complex(real, imaginary))
-        })
-        return result
+        return multiply(this.coeffs, this.points)
     }
     getCoeffDerivative(points: Complex[], n: number) {
         let result: Complex[][] = []
@@ -115,7 +103,7 @@ export class BezierSplineCage {
     }
     p2pDeformation() {
         // initialize
-        const lambda = 1
+        const lambda2 = 1
         const Cp2p = this.getCoeffs(this.srcZs)
         const C2 = this.getCoeffDerivative(this.srcZs, 2)
         const l = this.points.length
@@ -134,10 +122,14 @@ export class BezierSplineCage {
             const bDot = multiply(Cp2pTi, dstZ) as Matrix
             b = add(b, bDot)
         })
-        const A = add(Cp2pSum, multiply(C2Sum, lambda))
-        const invA = inv(A);
-        const x = multiply(invA, b)
-        // convert Matrix to Complex[]
+        console.log(C2Sum)
+        const A = add(Cp2pSum, multiply(C2Sum, lambda2))
+        //A′ = A + λI を最適化に用いる（ A に微小項 λ を加えて特異行列を回避する）
+        const lambda = 1e-5
+        const I = identity(A.size()[0]) // 単位行列
+        const A_regularized = add(A, multiply(lambda, I)) as Matrix
+        const x = lusolve(A_regularized, b) // LU分解
+        // 解行列 x を複素数配列に格納
         let result: Complex[] = []
         x.forEach((p) => {
             result.push(p)
@@ -150,8 +142,8 @@ function integral(z: Complex, edge: [Complex, Complex], m: number, N: number) {
     let result = complex(0, 0)
     const b = subtract(edge[1], z)
     const bPrev = subtract(edge[0], z)
-    for (let k: number = 0; k <= m; k++) {
-        for (let l: number = 0; l <= N - m; l++) {
+    for (let k = 0; k <= m; k++) {
+        for (let l = 0; l <= N - m; l++) {
             if (N - m - l + k == 0) continue   //0除算はスキップ
             const mk = binomialCoefficient(m, k)
             const nml = binomialCoefficient(N - m, l)
@@ -161,7 +153,7 @@ function integral(z: Complex, edge: [Complex, Complex], m: number, N: number) {
         }
     }
     result = add(result, multiply(multiply(pow(multiply(bPrev, -1), m), pow(b, N - m)), log(divide(b, bPrev) as Complex))) as Complex
-    const a = subtract(edge[1], (edge[0]))
+    const a = subtract(edge[1], edge[0])
     const nm = binomialCoefficient(N, m)
     result = multiply(result, nm) as Complex
     result = divide(result, pow(a, N)) as Complex
@@ -175,8 +167,8 @@ function derivative(z: Complex, edge: [Complex, Complex], m: number, N: number, 
     const bPrev = subtract(edge[0], z)
     const nFactorial = factorial(n)
     const i2Pi = complex(0, Math.PI * 2)
-    for (let k = 0; k < m; k++) {
-        for (let l = 0; l < N - m; l++) {
+    for (let k = 0; k <= m; k++) {
+        for (let l = 0; l <= N - m; l++) {
             const mk = binomialCoefficient(m, k)
             const nml = binomialCoefficient(N - m, l)
             let factorNum = mk * nml * Math.pow(-1, N - k - l)
@@ -191,7 +183,7 @@ function derivative(z: Complex, edge: [Complex, Complex], m: number, N: number, 
             result = add(result, multiply(factorCompNum, factorNum)) as Complex
         }
         const nm = binomialCoefficient(N, m)
-        result = multiply(result, multiply(divide(pow(a, N), i2Pi), nm * nFactorial)) as Complex
+        result = multiply(result, divide(divide(nm * nFactorial, pow(a, N)), i2Pi)) as Complex
     }
     return result
 }
