@@ -6,6 +6,7 @@ const config = {
 		adapter: adapter(),
 		paths: {
 			base: process.env.NODE_ENV === 'production' ? '/Polynomial-Cauchy-Coordinates-for-Curved-Cages' : '',
+			relative: true, // 相対パスを有効にする
 		}
 	}
 };

@@ -25,7 +25,6 @@ export async function parseSVGFromPath(filePath: string): Promise<SvgPath[]> {
     const blob = await response.blob()
     const fileName = filePath.split('/').pop() || 'unknown'
     const file = new File([blob], fileName, { type: blob.type });
-    console.log(blob.type)
     return parseSVG(file)
 }
 

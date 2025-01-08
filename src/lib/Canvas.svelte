@@ -77,10 +77,10 @@
 		if (input.value == "star") {
 			shape = createDefaultContent();
 		} else if (input.value == "thinker") {
-			const svgRaw = await parseSVGFromPath("./src/img/thinker.svg");
+			const svgRaw = await parseSVGFromPath("/thinker.svg");
 			initShape(svgRaw);
 		} else if (input.value == "skater") {
-			const svgRaw = await parseSVGFromPath("./src/img/skater.svg");
+			const svgRaw = await parseSVGFromPath("/skater.svg");
 			initShape(svgRaw);
 		}
 		cage = new BezierSplineCage([], []);
