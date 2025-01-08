@@ -1,17 +1,17 @@
-import adapter from '@sveltejs/adapter-auto';
-import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+import adapter from '@sveltejs/adapter-static';
 
-/** @type {import('@sveltejs/kit').Config} */
 const config = {
-	// Consult https://svelte.dev/docs/kit/integrations
-	// for more information about preprocessors
-	preprocess: vitePreprocess(),
-
 	kit: {
-		// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
-		// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
-		// See https://svelte.dev/docs/kit/adapters for more information about adapters.
-		adapter: adapter()
+		adapter: adapter({
+			// optional: 以下の設定を必要に応じて変更
+			pages: 'build', // ビルドされた静的ファイルを出力するフォルダー
+			assets: 'build', // 静的アセットの出力先
+			fallback: null,  // `404.html`が必要な場合は指定
+		}),
+		paths: {
+			// GitHub Pagesのサブディレクトリ名を指定
+			base: process.env.NODE_ENV === 'production' ? '/Polynomial-Cauchy-Coordinates-for-Curved-Cages' : '',
+		}
 	}
 };
 
