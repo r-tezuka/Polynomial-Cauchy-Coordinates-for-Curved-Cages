@@ -48,7 +48,6 @@ export class BezierSplineCage {
     }
     getCoeffs(points: Complex[]) {
         let result: Complex[][] = []
-        const i2Pi = complex(0, 2 * Math.PI)
         points.forEach((z, i) => {
             result.push([])
             this.curves.forEach((controlPoints) => {
@@ -56,7 +55,8 @@ export class BezierSplineCage {
                 const [edgeStart, edgeEnd] = [controlPoints[0], controlPoints[degree]]
                 const edge: [Complex, Complex] = [this.points[edgeStart], this.points[edgeEnd]]
                 for (let m: number = 0; m <= degree; m++) {
-                    const c = divide(integral(z, edge, m, degree), i2Pi) as Complex
+                    const c = derivative(z, edge, m, degree, 0) as Complex
+                    // const c = divide(integral(z, edge, m, degree), complex(0, 2 * Math.PI)) as Complex
                     if (m == degree && edgeEnd == 0) {
                         result[i][0] = add(result[i][0], c) as Complex
                     } else {
@@ -122,7 +122,6 @@ export class BezierSplineCage {
             const bDot = multiply(Cp2pTi, dstZ) as Matrix
             b = add(b, bDot)
         })
-        console.log(C2Sum)
         const A = add(Cp2pSum, multiply(C2Sum, lambda2))
         //A′ = A + λI を最適化に用いる（ A に微小項 λ を加えて特異行列を回避する）
         const lambda = 1e-5
@@ -138,6 +137,7 @@ export class BezierSplineCage {
     }
 }
 
+// n = 0 の場合の derivative() で代替可能
 function integral(z: Complex, edge: [Complex, Complex], m: number, N: number) {
     let result = complex(0, 0)
     const b = subtract(edge[1], z)
@@ -178,13 +178,12 @@ function derivative(z: Complex, edge: [Complex, Complex], m: number, N: number, 
             } else {
                 factorNum /= N - m - l + k - n
                 factorCompNum = subtract(multiply(pow(b, N - m + k - n), pow(bPrev, m - k)), multiply(pow(b, l), pow(bPrev, N - l - n))) as Complex
-                result = add(result, multiply(factorCompNum, factorNum)) as Complex
             }
             result = add(result, multiply(factorCompNum, factorNum)) as Complex
         }
-        const nm = binomialCoefficient(N, m)
-        result = multiply(result, divide(divide(nm * nFactorial, pow(a, N)), i2Pi)) as Complex
     }
+    const nm = binomialCoefficient(N, m)
+    result = multiply(result, divide(nm * nFactorial, multiply(pow(a, N), i2Pi))) as Complex
     return result
 }
 
