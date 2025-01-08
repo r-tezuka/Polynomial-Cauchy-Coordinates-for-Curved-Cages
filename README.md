@@ -1,6 +1,9 @@
 # Polynomial-Cauchy-Coordinates-for-Curved-Cages
 
-web impl for https://dl.acm.org/doi/pdf/10.1145/3680528.3687654
+Web imprementation for the paper https://dl.acm.org/doi/pdf/10.1145/3680528.3687654
+
+This implementation is published by Github pages.
+https://r-tezuka.github.io/Polynomial-Cauchy-Coordinates-for-Curved-Cages/
 
 
 
@@ -42,3 +45,9 @@ npm run build
 You can preview the production build with `npm run preview`.
 
 > To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+
+## Publish to Github Pages
+
+```bash
+npm run deploy
+```

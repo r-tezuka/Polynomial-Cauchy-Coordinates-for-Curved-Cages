@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { base } from "$app/paths";
 	import { onMount } from "svelte";
 	import { getNearestPointId } from "$lib/Util";
 	import { BezierSplineCage } from "$lib/CauchyCoordinates";
@@ -77,10 +78,10 @@
 		if (input.value == "star") {
 			shape = createDefaultContent();
 		} else if (input.value == "thinker") {
-			const svgRaw = await parseSVGFromPath("/thinker.svg");
+			const svgRaw = await parseSVGFromPath(base + "/thinker.svg");
 			initShape(svgRaw);
 		} else if (input.value == "skater") {
-			const svgRaw = await parseSVGFromPath("/skater.svg");
+			const svgRaw = await parseSVGFromPath(base + "/skater.svg");
 			initShape(svgRaw);
 		}
 		cage = new BezierSplineCage([], []);
