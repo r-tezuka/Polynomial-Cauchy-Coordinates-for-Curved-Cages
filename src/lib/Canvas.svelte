@@ -2,7 +2,8 @@
 	import { onMount } from "svelte";
 	import { getNearestPointId } from "$lib/Util";
 	import { BezierSplineCage } from "$lib/CauchyCoordinates";
-	import { parseSVG, shiftInverse } from "$lib/Svg";
+	import { parseSVG, parseSVGFromPath, shiftInverse } from "$lib/Svg";
+	import type { SvgPath } from "$lib/Svg";
 	import type { Complex } from "mathjs";
 	import { complex } from "mathjs";
 	import { Shape } from "$lib/Shape";
@@ -29,6 +30,7 @@
 	let cage: BezierSplineCage;
 	let shape: Shape = new Shape();
 	let cagePolygon: Complex[] = []; // 作成中のケージを格納する
+	let selectedShape = "star";
 
 	// 画面モード
 	let mode = "deform";
@@ -70,6 +72,21 @@
 	}
 
 	// UIイベント
+	async function handleShapeChanbe(event: Event) {
+		const input = event.target as HTMLInputElement;
+		if (input.value == "star") {
+			shape = createDefaultContent();
+		} else if (input.value == "thinker") {
+			const svgRaw = await parseSVGFromPath("./src/img/thinker.svg");
+			initShape(svgRaw);
+		} else if (input.value == "skater") {
+			const svgRaw = await parseSVGFromPath("./src/img/skater.svg");
+			initShape(svgRaw);
+		}
+		cage = new BezierSplineCage([], []);
+		cagePolygon = [];
+		mode = "create";
+	}
 	function handleModeChange(event: Event) {
 		cagePolygon = [];
 		const input = event.target as HTMLInputElement;
@@ -86,6 +103,7 @@
 		}
 	}
 	function handleReset() {
+		selectedShape = "star";
 		cage = createDefaultCage();
 		shape = createDefaultContent();
 		cage.setCoeffs(shape.points);
@@ -104,6 +122,13 @@
 		const dataTransfer = event.dataTransfer as DataTransfer;
 		const file = dataTransfer.files[0];
 		const svgRaw = await parseSVG(file);
+		initShape(svgRaw);
+	}
+	const preventDefaults = (event: DragEvent) => {
+		event.preventDefault();
+		event.stopPropagation();
+	};
+	function initShape(svgRaw: SvgPath[]) {
 		const svgShifted = shiftInverse(svgRaw);
 		let svgPoints: Complex[] = [];
 		shape = new Shape();
@@ -126,10 +151,6 @@
 		shape.points = svgPoints;
 		cage.setCoeffs(shape.points);
 	}
-	const preventDefaults = (event: DragEvent) => {
-		event.preventDefault();
-		event.stopPropagation();
-	};
 	// マウスイベント
 	function onMouseDown(e: MouseEvent) {
 		isDragging = true;
@@ -390,13 +411,16 @@
 	}
 
 	// モード一覧
-	const options = [
+	const modeOptions = [
 		{ value: "view", label: "View canvas" },
 		{ value: "create", label: "Create cage" },
 		{ value: "edit", label: "Edit cage" },
 		{ value: "deform", label: "Deform shape" },
 		{ value: "p2p", label: "P2P Deformation" },
 	];
+
+	// サンプルシェイプ一覧
+	let shapeOptions = ["star", "thinker", "skater"];
 </script>
 
 <svelte:window on:keydown={handleKeydown} on:resize={handleResize} />
@@ -415,7 +439,20 @@
 		on:dragleave={preventDefaults}
 	></canvas>
 	<div class="overlay-text-left">
-		{#each options as { value, label }}
+		<label for="dropdown">Sample shape:</label>
+		<select
+			id="dropdown"
+			bind:value={selectedShape}
+			on:change={handleShapeChanbe}
+		>
+			{#each shapeOptions as option}
+				<option value={option}>{option}</option>
+			{/each}
+		</select>
+		<button on:click={handleReset}>Reset</button>
+		<br />
+		<br />
+		{#each modeOptions as { value, label }}
 			<label>
 				<input
 					type="radio"
@@ -427,11 +464,7 @@
 			</label>
 			<br />
 		{/each}
-		<br />
-		<button on:click={handleReset}>Reset cage & shape</button>
 		{#if mode == "p2p"}
-			<br />
-			<br />
 			<button on:click={handleP2P}>Deform</button>
 		{/if}
 	</div>

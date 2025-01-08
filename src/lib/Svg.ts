@@ -1,5 +1,5 @@
 
-type SvgPath = {
+export type SvgPath = {
     d: { command: string, points: { x: number, y: number }[] }[]
     fill: string | undefined
     stroke: string | undefined
@@ -18,6 +18,15 @@ interface Style {
 
 interface SvgDefs {
     [className: string]: Style;
+}
+
+export async function parseSVGFromPath(filePath: string): Promise<SvgPath[]> {
+    const response = await fetch(filePath)
+    const blob = await response.blob()
+    const fileName = filePath.split('/').pop() || 'unknown'
+    const file = new File([blob], fileName, { type: blob.type });
+    console.log(blob.type)
+    return parseSVG(file)
 }
 
 export async function parseSVG(file: File): Promise<SvgPath[]> {
