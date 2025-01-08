@@ -1,0 +1,1 @@
+var s;const e=((s=globalThis.__sveltekit_uqn0k5)==null?void 0:s.base)??"/Polynomial-Cauchy-Coordinates-for-Curved-Cages";var a;const o=((a=globalThis.__sveltekit_uqn0k5)==null?void 0:a.assets)??e;export{o as a,e as b};
